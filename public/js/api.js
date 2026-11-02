@@ -94,6 +94,21 @@ export function deleteFixedRow(ym, id) {
   return sendJson("DELETE", `/api/fixed/${encodeURIComponent(ym)}/${id}`);
 }
 
+/** `POST /api/fixed/:ym/reorder` — body `{kind, ids}`, ids top-down. */
+export function reorderFixed(ym, kind, ids) {
+  return sendJson("POST", `/api/fixed/${encodeURIComponent(ym)}/reorder`, { kind, ids });
+}
+
+/** `PATCH /api/templates/:id` — an unmaterialized month's virtual fixed rows. */
+export function patchTemplate(id, fields) {
+  return sendJson("PATCH", `/api/templates/${id}`, fields);
+}
+
+/** `DELETE /api/templates/:id` — deletes a virtual fixed row's template. */
+export function deleteTemplate(id) {
+  return sendJson("DELETE", `/api/templates/${id}`);
+}
+
 /** URL for the CSV download of `ym`; the browser handles the fetch. */
 export function exportMonthUrl(ym) {
   return `/api/month/${encodeURIComponent(ym)}/export`;

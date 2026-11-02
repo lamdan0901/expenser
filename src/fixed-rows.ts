@@ -7,8 +7,10 @@
 // own snapshot, so history survives template changes. Creating the first
 // fixed row in a month materializes it; a fixed-row write is a write.
 //
-// Amounts are full VND in the DB and in these functions; the HTTP layer turns
-// the UI's k-scale input into dong with `kIntoVnd`.
+// Amounts are full VND in the DB and in these functions; create converts the
+// UI's k-scale input with `kIntoVnd`, while a patch takes the full-VND value an
+// inline edit displayed. Reordering rewrites `position = index + 1` in the
+// posted top-down order, matching the section's ascending list.
 import { currentYm, isYm, kIntoVnd, nextTopPosition } from "./month-utils";
 import { materializeMonth, type FixedItem } from "./month";
 import {
@@ -148,6 +150,42 @@ export async function deleteFixedRow(env: Env, ym: string, id: number): Promise<
   return meta.changes > 0;
 }
 
+/**
+ * Rewrites positions to `index + 1` in the given id order for the live rows of
+ * one kind in `ym`. The section orders by `position` ascending, so the frontend
+ * posts the whole section top-down. `false` when `ids` is not exactly the set of
+ * live rows for `kind` in `ym`.
+ */
+export async function reorderFixedRows(
+  env: Env,
+  kind: TemplateKind,
+  ym: string,
+  ids: number[],
+): Promise<boolean> {
+  const { results: rows } = await env.DB.prepare(
+    "SELECT id FROM fixed_rows WHERE ym = ? AND kind = ? AND deleted = 0",
+  )
+    .bind(ym, kind)
+    .all<{ id: number }>();
+
+  const live = new Set(rows.map((row) => row.id));
+  const unique = new Set(ids);
+  if (unique.size !== ids.length || live.size !== ids.length || !ids.every((id) => live.has(id))) {
+    return false;
+  }
+
+  await env.DB.batch(
+    ids.map((id, index) =>
+      env.DB.prepare("UPDATE fixed_rows SET position = ? WHERE id = ? AND deleted = 0").bind(
+        index + 1,
+        id,
+      ),
+    ),
+  );
+
+  return true;
+}
+
 /** `POST /api/fixed/:ym` — body carries the k-scale amount. */
 export async function handleCreateFixedRow(
   request: Request,
@@ -176,7 +214,7 @@ export async function handleCreateFixedRow(
   });
 }
 
-/** `PATCH /api/fixed/:ym/:id` — body carries the k-scale amount when present. */
+/** `PATCH /api/fixed/:ym/:id` — body carries the full-VND amount when present. */
 export async function handlePatchFixedRow(
   request: Request,
   env: Env,
@@ -201,7 +239,7 @@ export async function handlePatchFixedRow(
   }
 
   if ("amount" in body) {
-    const amount = readAmount(body.amount);
+    const amount = readVnd(body.amount);
     if (amount === null) return error("invalid_amount");
     fields.amount = amount;
   }
@@ -227,6 +265,27 @@ export async function handleDeleteFixedRow(
   const deleted = await deleteFixedRow(env, ym, id);
 
   return deleted ? new Response(null, { status: 204 }) : error("not_found", 404);
+}
+
+/** `POST /api/fixed/:ym/reorder` — body `{kind, ids}`; ids arrive top-down. */
+export async function handleReorderFixedRows(
+  request: Request,
+  env: Env,
+  ym: string,
+): Promise<Response> {
+  if (!isYm(ym)) return error("invalid_ym");
+
+  const body = await readJsonObject(request);
+  if (body === null) return error("invalid_body");
+
+  const { kind } = body;
+  if (!isKind(kind)) return error("invalid_kind");
+
+  const ids = readIds(body.ids);
+  if (ids === null) return error("invalid_ids");
+
+  const reordered = await reorderFixedRows(env, kind, ym, ids);
+  return reordered ? new Response(null, { status: 204 }) : error("invalid_ids");
 }
 
 /** The current month and later are still live; only earlier months are history. */
@@ -259,6 +318,22 @@ function readName(value: unknown): string | null {
 /** Converts a k-scale amount; `null` when missing or outside `kIntoVnd`'s range. */
 function readAmount(value: unknown): number | null {
   return typeof value === "number" ? kIntoVnd(value) : null;
+}
+
+/** A full-VND edit (`500000` → 500,000 ₫): a positive safe integer, no ×1000. */
+function readVnd(value: unknown): number | null {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null;
+}
+
+/** A reorder payload is a list of unique positive integer ids. */
+function readIds(value: unknown): number[] | null {
+  if (!Array.isArray(value) || !value.every(isId)) return null;
+
+  return new Set(value).size === value.length ? value : null;
+}
+
+function isId(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
 /** `undefined` means "no comment"; only a string is accepted otherwise. */

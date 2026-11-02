@@ -57,7 +57,7 @@ beforeEach(async () => {
 });
 
 describe("PATCH /api/entry/:id", () => {
-  it("patches name and amount, converting k input to VND", async () => {
+  it("patches name and amount, treating the amount as full VND", async () => {
     const id = await makeEntry("2026-11", {
       kind: "expense",
       name: "Groceries",
@@ -65,7 +65,7 @@ describe("PATCH /api/entry/:id", () => {
       date: "2026-11-02",
     });
 
-    const response = await patchEntry(id, { name: "Market", amount: 170 });
+    const response = await patchEntry(id, { name: "Market", amount: 170_000 });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({

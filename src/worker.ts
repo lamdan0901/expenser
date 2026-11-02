@@ -12,6 +12,7 @@ import {
   handleCreateFixedRow,
   handleDeleteFixedRow,
   handlePatchFixedRow,
+  handleReorderFixedRows,
 } from "./fixed-rows";
 import { handleGetMonth } from "./month";
 import { handleInitialBalance, handleMe, handlePasscode } from "./setup";
@@ -94,6 +95,11 @@ export default {
       const fixedRoute = /^\/api\/fixed\/([^/]+)$/.exec(pathname);
       if (fixedRoute !== null && request.method === "POST") {
         return handleCreateFixedRow(request, env, fixedRoute[1]);
+      }
+
+      const fixedReorderRoute = /^\/api\/fixed\/([^/]+)\/reorder$/.exec(pathname);
+      if (fixedReorderRoute !== null && request.method === "POST") {
+        return handleReorderFixedRows(request, env, fixedReorderRoute[1]);
       }
 
       const fixedIdRoute = /^\/api\/fixed\/([^/]+)\/(\d+)$/.exec(pathname);

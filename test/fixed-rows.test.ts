@@ -32,6 +32,13 @@ function deleteFixed(ym: string, id: number): Promise<Response> {
   return authedFetch(`/api/fixed/${ym}/${id}`, { method: "DELETE" });
 }
 
+function reorderFixed(ym: string, body: unknown): Promise<Response> {
+  return authedFetch(`/api/fixed/${ym}/reorder`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 /** The month `delta` steps away from `ym`; the tests never read the wall clock twice. */
 function shiftMonth(ym: string, delta: number): string {
   const [year, month] = ym.split("-").map(Number);
@@ -111,7 +118,7 @@ describe("PATCH /api/fixed/:ym/:id", () => {
   it("changes only a past month's snapshot, leaving the template and current month alone", async () => {
     const { templateId, rowId } = await materializedMonth();
 
-    const response = await patchFixed(PAST, rowId, { name: "Raise", amount: 900 });
+    const response = await patchFixed(PAST, rowId, { name: "Raise", amount: 900_000 });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
@@ -150,7 +157,7 @@ describe("PATCH /api/fixed/:ym/:id", () => {
     const { templateId } = await materializedMonth();
     const [currentRow] = await storedFixedRows(CURRENT);
 
-    const response = await patchFixed(CURRENT, currentRow.id, { amount: 900 });
+    const response = await patchFixed(CURRENT, currentRow.id, { amount: 900_000 });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
@@ -174,7 +181,7 @@ describe("PATCH /api/fixed/:ym/:id", () => {
     await createFixed(future, { kind: "fixed_income", name: "Bonus", amount: 100 });
 
     const [bonusRow] = (await storedFixedRows(future)).filter((row) => row.name === "Bonus");
-    await patchFixed(future, bonusRow.id, { amount: 200 });
+    await patchFixed(future, bonusRow.id, { amount: 200_000 });
 
     const bonusTemplate = (await storedTemplates()).find((row) => row.name === "Bonus");
     expect(bonusTemplate).toEqual({
@@ -192,7 +199,7 @@ describe("PATCH /api/fixed/:ym/:id", () => {
   it("does not touch a past month's row through a mismatched ym", async () => {
     const { rowId } = await materializedMonth();
 
-    const response = await patchFixed(CURRENT, rowId, { amount: 900 });
+    const response = await patchFixed(CURRENT, rowId, { amount: 900_000 });
 
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toEqual({ error: "not_found" });
@@ -203,7 +210,7 @@ describe("PATCH /api/fixed/:ym/:id", () => {
   it("rejects an unknown row and a kind change", async () => {
     const { rowId } = await materializedMonth();
 
-    const missing = await patchFixed(PAST, 999, { amount: 900 });
+    const missing = await patchFixed(PAST, 999, { amount: 900_000 });
     expect(missing.status).toBe(404);
     await expect(missing.json()).resolves.toEqual({ error: "not_found" });
 
@@ -227,7 +234,7 @@ describe("PATCH /api/fixed/:ym/:id", () => {
     expect(badComment.status).toBe(400);
     await expect(badComment.json()).resolves.toEqual({ error: "invalid_comment" });
 
-    const badYm = await patchFixed("2026-13", rowId, { amount: 900 });
+    const badYm = await patchFixed("2026-13", rowId, { amount: 900_000 });
     expect(badYm.status).toBe(400);
     await expect(badYm.json()).resolves.toEqual({ error: "invalid_ym" });
   });
@@ -433,6 +440,106 @@ describe("POST /api/fixed/:ym", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ kind: "fixed_expense", name: "Rent", amount: 300 }),
+    });
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: "unauthorized" });
+  });
+});
+
+describe("POST /api/fixed/:ym/reorder", () => {
+  it("writes index+1 positions in display order, so a drag sticks", async () => {
+    await createFixed(CURRENT, { kind: "fixed_income", name: "Salary", amount: 500 });
+    await createFixed(CURRENT, { kind: "fixed_income", name: "Bonus", amount: 100 });
+
+    const before = (await storedFixedRows(CURRENT)).filter(
+      (row) => row.kind === "fixed_income",
+    );
+    expect(before.map((row) => [row.name, row.position])).toEqual([
+      ["Salary", 1],
+      ["Bonus", 2],
+    ]);
+
+    // The frontend sends the section's ids top-down; positions are ascending,
+    // so index+1 keeps the dropped DOM order.
+    const response = await reorderFixed(CURRENT, {
+      kind: "fixed_income",
+      ids: [before[1].id, before[0].id],
+    });
+    expect(response.status).toBe(204);
+
+    const after = (await storedFixedRows(CURRENT)).filter((row) => row.kind === "fixed_income");
+    expect(after.map((row) => [row.name, row.position])).toEqual([
+      ["Bonus", 1],
+      ["Salary", 2],
+    ]);
+    await expect(getMonth(env, CURRENT)).resolves.toMatchObject({
+      fixed: [
+        { kind: "fixed_income", name: "Bonus", position: 1 },
+        { kind: "fixed_income", name: "Salary", position: 2 },
+      ],
+    });
+  });
+
+  it("rejects malformed months, kinds and ids without touching positions", async () => {
+    await createFixed(CURRENT, { kind: "fixed_income", name: "Salary", amount: 500 });
+    await createFixed(CURRENT, { kind: "fixed_income", name: "Bonus", amount: 100 });
+
+    const rows = (await storedFixedRows(CURRENT)).filter((row) => row.kind === "fixed_income");
+    const ids = rows.map((row) => row.id);
+
+    const badYm = await reorderFixed("2026-13", { kind: "fixed_income", ids });
+    expect(badYm.status).toBe(400);
+    await expect(badYm.json()).resolves.toEqual({ error: "invalid_ym" });
+
+    for (const kind of ["income", "fixed_", "", null, undefined]) {
+      const response = await reorderFixed(CURRENT, { kind, ids });
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({ error: "invalid_kind" });
+    }
+
+    // Not an array, duplicates, a subset, a foreign id and a non-integer id.
+    for (const badIds of [undefined, [ids[0], ids[0]], [ids[0]], [...ids, 9999], [ids[0], 1.5]]) {
+      const response = await reorderFixed(CURRENT, { kind: "fixed_income", ids: badIds });
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({ error: "invalid_ids" });
+    }
+
+    const after = (await storedFixedRows(CURRENT)).filter((row) => row.kind === "fixed_income");
+    expect(after.map((row) => [row.name, row.position])).toEqual([
+      ["Salary", 1],
+      ["Bonus", 2],
+    ]);
+  });
+
+  it("rejects ids from another kind or another month", async () => {
+    await createFixed(CURRENT, { kind: "fixed_income", name: "Salary", amount: 500 });
+    await createFixed(CURRENT, { kind: "fixed_expense", name: "Rent", amount: 300 });
+    await createFixed(PAST, { kind: "fixed_income", name: "Old salary", amount: 400 });
+
+    const current = await storedFixedRows(CURRENT);
+    const income = current.find((row) => row.kind === "fixed_income")!;
+    const expense = current.find((row) => row.kind === "fixed_expense")!;
+    const old = (await storedFixedRows(PAST)).find((row) => row.kind === "fixed_income")!;
+
+    for (const mixed of [
+      [income.id, expense.id],
+      [income.id, old.id],
+    ]) {
+      const response = await reorderFixed(CURRENT, { kind: "fixed_income", ids: mixed });
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({ error: "invalid_ids" });
+    }
+  });
+
+  it("requires auth", async () => {
+    const response = await SELF.fetch(`https://example.com/api/fixed/${CURRENT}/reorder`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind: "fixed_income", ids: [] }),
     });
 
     expect(response.status).toBe(401);

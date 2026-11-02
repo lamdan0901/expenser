@@ -1,9 +1,10 @@
 // Fixed (recurring) income/expense templates.
 //
-// Rows hold full VND amounts; the HTTP API accepts the thousands-scale integer
-// the UI collects and converts it with `kIntoVnd`. Templates are soft-deleted
-// so months that materialized from them keep their history, and positions are
-// independent per kind: `fixed_income` and `fixed_expense` each run 1..n.
+// Rows hold full VND amounts; create accepts the thousands-scale integer the
+// UI collects and converts it with `kIntoVnd`, while a patch takes the full-VND
+// value an inline edit displayed. Templates are soft-deleted so months that
+// materialized from them keep their history, and positions are independent per
+// kind: `fixed_income` and `fixed_expense` each run 1..n.
 import { kIntoVnd, nextTopPosition } from "./month-utils";
 
 export type TemplateKind = "fixed_income" | "fixed_expense";
@@ -130,7 +131,7 @@ export async function handleCreateTemplate(request: Request, env: Env): Promise<
   });
 }
 
-/** `PATCH /api/templates/:id` — body carries the k-scale amount when present. */
+/** `PATCH /api/templates/:id` — body carries the full-VND amount when present. */
 export async function handlePatchTemplate(
   request: Request,
   env: Env,
@@ -152,7 +153,7 @@ export async function handlePatchTemplate(
   }
 
   if ("amount" in body) {
-    const amount = readAmount(body.amount);
+    const amount = readVnd(body.amount);
     if (amount === null) return error("invalid_amount");
     fields.amount = amount;
   }
@@ -189,6 +190,11 @@ function readName(value: unknown): string | null {
 /** Converts a k-scale amount; `null` when missing or outside `kIntoVnd`'s range. */
 function readAmount(value: unknown): number | null {
   return typeof value === "number" ? kIntoVnd(value) : null;
+}
+
+/** A full-VND edit (`500000` → 500,000 ₫): a positive safe integer, no ×1000. */
+function readVnd(value: unknown): number | null {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null;
 }
 
 /** `undefined` means "no comment"; only a string is accepted otherwise. */

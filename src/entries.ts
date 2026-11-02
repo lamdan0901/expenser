@@ -1,8 +1,9 @@
 // Manual sheet entries: the income, expense and note rows a user adds to a
-// month. Rows store full VND; the HTTP API accepts the k-scale integer the UI
-// collects and converts it with `kIntoVnd`. New rows always go on top of the
-// month's single position sequence (positions span all kinds), and the first
-// write materializes the month so its fixed rows become a snapshot.
+// month. Rows store full VND; create accepts the k-scale integer the composer
+// collects and converts it with `kIntoVnd`, while an inline edit sends the
+// full-VND integer the cell displayed. New rows always go on top of the month's
+// single position sequence (positions span all kinds), and the first write
+// materializes the month so its fixed rows become a snapshot.
 //
 // Edits keep a row on its stored month, so a patched date must still fall
 // inside it. Deletes are soft so history survives. A reorder rewrites positions
@@ -185,7 +186,7 @@ export async function handleCreateEntry(
   );
 }
 
-/** `PATCH /api/entry/:id` — body carries the k-scale amount when present. */
+/** `PATCH /api/entry/:id` — body carries the full-VND amount when present. */
 export async function handlePatchEntry(
   request: Request,
   env: Env,
@@ -211,7 +212,7 @@ export async function handlePatchEntry(
 
   // Notes always store a NULL amount, so anything sent for one is ignored.
   if ("amount" in body && existing.kind !== "note") {
-    const amount = readAmount(body.amount);
+    const amount = readVnd(body.amount);
     if (amount === null) return error("invalid_amount");
     fields.amount = amount;
   }
@@ -281,6 +282,11 @@ function readName(value: unknown): string | null {
 /** Converts a k-scale amount; `null` when missing or outside `kIntoVnd`'s range. */
 function readAmount(value: unknown): number | null {
   return typeof value === "number" ? kIntoVnd(value) : null;
+}
+
+/** A full-VND edit (`500000` → 500,000 ₫): a positive safe integer, no ×1000. */
+function readVnd(value: unknown): number | null {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null;
 }
 
 /**

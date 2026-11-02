@@ -156,14 +156,14 @@ describe("GET /api/templates", () => {
 });
 
 describe("PATCH /api/templates/:id", () => {
-  it("updates the amount from k input and returns the stored row", async () => {
+  it("updates the amount from full VND input and returns the stored row", async () => {
     const created = (await (await createTemplate({
       kind: "fixed_income",
       name: "Salary",
       amount: 500,
     })).json()) as Template;
 
-    const response = await patchTemplate(created.id, { amount: 170 });
+    const response = await patchTemplate(created.id, { amount: 170_000 });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ...created, amount: 170_000 });
@@ -194,7 +194,7 @@ describe("PATCH /api/templates/:id", () => {
       amount: 500,
     })).json()) as Template;
 
-    for (const amount of [0, -1, 1.5, 1e9, "170", null]) {
+    for (const amount of [0, -1, 1.5, 1e16, "170", null]) {
       const response = await patchTemplate(created.id, { amount });
 
       expect(response.status).toBe(400);
@@ -205,7 +205,7 @@ describe("PATCH /api/templates/:id", () => {
   });
 
   it("returns 404 for an unknown template", async () => {
-    const response = await patchTemplate(999_999, { amount: 170 });
+    const response = await patchTemplate(999_999, { amount: 170_000 });
 
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toEqual({ error: "not_found" });

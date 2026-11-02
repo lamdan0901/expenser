@@ -153,6 +153,10 @@ function onGlobalKey(event) {
   if (event.ctrlKey || event.metaKey || event.altKey) return;
 
   if (event.key === "Escape") {
+    // An inline cell owns Esc while it is being edited (it cancels the edit);
+    // only the composer's own controls flip direction.
+    if (event.target instanceof HTMLElement && event.target.isContentEditable) return;
+
     selectKind(kind === "expense" ? "income" : "expense");
     event.preventDefault();
     return;

@@ -3,9 +3,14 @@
 //
 // `renderMonth` paints a fetched `MonthView`. `addEntry` is the composer's
 // optimistic path: the API has already assigned the new row its top position,
-// so the client can prepend it and adjust the visible totals without a refetch.
-// Only income and expense rows touch the numbers — notes never do.
+// so the client can prepend it and recompute the visible totals without a
+// refetch. Only income and expense rows touch the numbers — notes never do.
+//
+// Rows are wired for inline editing, drag and the action menu by `editing.js`.
+// This module owns the sheet model and the totals, so edits/deletes only need to
+// tell it which row changed; `paintTotals` then recomputes every displayed sum.
 import { fmtVND, prettyDate } from "./format.js";
+import { wireRow } from "./editing.js";
 
 const tbIncome = byId("tb-income");
 const tbExpense = byId("tb-expense");
@@ -23,8 +28,10 @@ const balIncome = byId("bal-income");
 const balExpense = byId("bal-expense");
 const balEnding = byId("bal-ending");
 
-/** The sheet currently on screen; `addEntry` updates it in place. */
+/** The sheet currently on screen; the edit helpers update it in place. */
 let sheet = null;
+/** Rows hidden by the optimistic delete chip; they stop counting until undone. */
+let pendingDeletes = new Set();
 
 /**
  * Paints every section from a `MonthView`: income and expense entries, the
@@ -33,6 +40,7 @@ let sheet = null;
  */
 export function renderMonth(view) {
   sheet = view;
+  pendingDeletes = new Set();
 
   const income = view.entries.filter((entry) => entry.kind === "income");
   const expense = view.entries.filter((entry) => entry.kind === "expense");
@@ -41,18 +49,17 @@ export function renderMonth(view) {
   const fixedIncome = view.fixed.filter((row) => row.kind === "fixed_income");
   const fixedExpense = view.fixed.filter((row) => row.kind === "fixed_expense");
 
-  tbIncome.replaceChildren(...income.map(entryRow));
-  tbExpense.replaceChildren(...expense.map(entryRow));
-  tbNotes.replaceChildren(...notes.map(entryRow));
-  tbFixedIncome.replaceChildren(...fixedIncome.map((row) => fixedRow(row, "fixed_income")));
-  tbFixedExpense.replaceChildren(...fixedExpense.map((row) => fixedRow(row, "fixed_expense")));
+  tbIncome.replaceChildren(...income.map((entry) => entryRow(entry, view.ym)));
+  tbExpense.replaceChildren(...expense.map((entry) => entryRow(entry, view.ym)));
+  tbNotes.replaceChildren(...notes.map((entry) => entryRow(entry, view.ym)));
+  tbFixedIncome.replaceChildren(
+    ...fixedIncome.map((row) => fixedRow(row, "fixed_income", view.ym)),
+  );
+  tbFixedExpense.replaceChildren(
+    ...fixedExpense.map((row) => fixedRow(row, "fixed_expense", view.ym)),
+  );
 
-  sumIncome.textContent = fmtVND(sumAmounts(income));
-  sumExpense.textContent = expenseSum(sumAmounts(expense));
-  sumFixedIncome.textContent = fmtVND(sumAmounts(fixedIncome));
-  sumFixedExpense.textContent = expenseSum(sumAmounts(fixedExpense));
-
-  renderBalance(view.summary, view.initial);
+  paintTotals();
 }
 
 /**
@@ -67,23 +74,75 @@ export function addEntry(entry, ym) {
   const tbody = sectionFor(entry.kind);
   if (tbody === null) return;
 
-  const row = entryRow(entry);
+  const row = entryRow(entry, sheet.ym);
   tbody.prepend(row);
 
   const section = tbody.closest(".section");
   if (section !== null) section.classList.remove("collapsed");
 
   sheet.entries = [entry, ...sheet.entries];
-  applyToTotals(entry);
+  paintTotals();
+  flash(row);
+}
 
-  if (entry.kind === "income") {
-    sumIncome.textContent = fmtVND(sumAmounts(entriesOf("income")));
-  } else if (entry.kind === "expense") {
-    sumExpense.textContent = expenseSum(sumAmounts(entriesOf("expense")));
+/** Merges an inline edit into the model and repaints every total. */
+export function patchRowModel(ym, kind, id, fields) {
+  if (sheet === null || sheet.ym !== ym) return;
+
+  const list = isFixedKind(kind) ? sheet.fixed : sheet.entries;
+  const item = list.find((row) => row.kind === kind && row.id === id);
+  if (item !== undefined) Object.assign(item, fields);
+
+  paintTotals();
+}
+
+/** Starts an optimistic delete: the row stays in the model but stops counting. */
+export function markRowDeleting(ym, kind, id) {
+  if (sheet === null || sheet.ym !== ym) return;
+
+  pendingDeletes.add(rowKey(kind, id));
+  paintTotals();
+}
+
+/** Undo: the row counts again. */
+export function restoreRow(ym, kind, id) {
+  if (sheet === null || sheet.ym !== ym) return;
+
+  pendingDeletes.delete(rowKey(kind, id));
+  paintTotals();
+}
+
+/** The DELETE succeeded; drop the row from the model entirely. */
+export function forgetRow(ym, kind, id) {
+  if (sheet === null || sheet.ym !== ym) return;
+
+  pendingDeletes.delete(rowKey(kind, id));
+
+  if (isFixedKind(kind)) {
+    sheet.fixed = sheet.fixed.filter((row) => !(row.kind === kind && row.id === id));
+  } else {
+    sheet.entries = sheet.entries.filter((entry) => !(entry.kind === kind && entry.id === id));
   }
 
-  renderBalance(sheet.summary, sheet.initial);
-  flash(row);
+  // The delete may have committed after a repaint (the undo chip outlived a
+  // month round-trip); remove the row the new paint put back on screen.
+  const stale = document.querySelector(`tr[data-kind="${kind}"][data-id="${id}"]`);
+  if (stale !== null) stale.remove();
+
+  paintTotals();
+}
+
+/** The ⚙ editor saved a new opening balance; repaint every derived number. */
+export function setInitial(value) {
+  if (sheet === null) return;
+
+  sheet.initial = value;
+  paintTotals();
+}
+
+/** The opening balance the ⚙ editor opens with. */
+export function getInitial() {
+  return sheet === null ? 0 : sheet.initial;
 }
 
 /** Paints the four balance-bar cells; `initial` is top-level on the view. */
@@ -97,54 +156,84 @@ function renderBalance(summary, initial) {
 }
 
 /** A normal entry row; notes drop the amount cell to match their table. */
-function entryRow(entry) {
+function entryRow(entry, ym) {
   const tr = el("tr");
   tr.dataset.id = String(entry.id);
+  tr.dataset.kind = entry.kind;
 
   const name = el("td");
   const cellName = el("span", "cell-name");
-  cellName.append(el("span", "page-icon", "📄"), el("span", "txt", entry.name));
+  const nameText = el("span", "txt", entry.name);
+  nameText.dataset.field = "name";
+  cellName.append(el("span", "page-icon", "📄"), nameText);
   name.append(cellName);
 
   tr.append(handleCell(), name);
 
   if (entry.kind !== "note") tr.append(amountCell(entry.amount, entry.kind));
 
-  tr.append(
-    el("td", "date", prettyDate(entry.date)),
-    commentCell(entry.comment),
-    el("td", "row-act", "⚙ ⋮"),
-  );
+  tr.append(el("td", "date", prettyDate(entry.date)), commentCell(entry.comment), actionCell());
+
+  wireRow(tr, {
+    ym,
+    kind: entry.kind,
+    id: entry.id,
+    name: entry.name,
+    amount: entry.amount,
+    comment: entry.comment,
+    date: entry.date,
+    virtual: false,
+  });
 
   return tr;
 }
 
 /** A fixed-section row; virtual template rows keep their negative id marker. */
-function fixedRow(row, kind) {
+function fixedRow(row, kind, ym) {
   const tr = el("tr");
   tr.dataset.id = String(row.id);
+  tr.dataset.kind = kind;
   if (row.id < 0) tr.dataset.virtual = "true";
 
   const name = el("td");
   const cellName = el("span", "cell-name");
-  cellName.append(el("span", "page-icon", "📄"), el("span", "txt", row.name));
+  const nameText = el("span", "txt", row.name);
+  nameText.dataset.field = "name";
+  cellName.append(el("span", "page-icon", "📄"), nameText);
   name.append(cellName);
 
-  tr.append(handleCell(), name, amountCell(row.amount, kind), commentCell(row.comment));
+  tr.append(handleCell(), name, amountCell(row.amount, kind), commentCell(row.comment), actionCell());
 
-  tr.append(el("td", "row-act", "⚙ ⋮"));
+  wireRow(tr, {
+    ym,
+    kind,
+    id: row.id,
+    name: row.name,
+    amount: row.amount,
+    comment: row.comment,
+    date: null,
+    virtual: row.id < 0,
+  });
+
   return tr;
 }
 
 function handleCell() {
   const td = el("td");
-  td.append(el("span", "handle", "⠿⠿"));
+  const handle = el("span", "handle", "⠿⠿");
+  handle.draggable = true;
+  handle.title = "Drag to reorder";
+  td.append(handle);
   return td;
 }
 
 function commentCell(comment) {
   const td = el("td");
-  td.append(el("span", "comment", comment ?? ""));
+  const text = el("span", "comment");
+  const value = el("span", "txt", comment ?? "");
+  value.dataset.field = "comment";
+  text.append(value);
+  td.append(text);
   return td;
 }
 
@@ -155,10 +244,74 @@ function amountCell(amount, kind) {
   const value = el("span", `amount ${debit ? "debit" : "credit"}`);
 
   if (debit) value.append("−");
-  value.append(el("span", "txt", fmtVND(amount ?? 0)));
+  const text = el("span", "txt", fmtVND(amount ?? 0));
+  text.dataset.field = "amount";
+  value.append(text);
   td.append(value);
 
   return td;
+}
+
+/** `⚙` focuses the name cell; `⋮` opens the row menu (delete lives there). */
+function actionCell() {
+  const td = el("td", "row-act");
+
+  const edit = el("span", "row-edit", "⚙");
+  edit.dataset.action = "edit";
+  edit.title = "Edit item";
+
+  const menu = el("span", "row-more", "⋮");
+  menu.dataset.action = "menu";
+  menu.title = "Row actions";
+
+  td.append(edit, menu);
+  return td;
+}
+
+/**
+ * Recomputes every SUM footer and the balance bar from the current model,
+ * skipping rows hidden by a pending delete. One place means an edit, undo and
+ * delete can never leave the totals half-updated.
+ */
+function paintTotals() {
+  if (sheet === null) return;
+
+  const fixedIncome = visibleFixed("fixed_income");
+  const fixedExpense = visibleFixed("fixed_expense");
+  const incomeEntries = visibleEntries("income");
+  const expenseEntries = visibleEntries("expense");
+
+  const incomeTotal =
+    sumAmounts(fixedIncome) + sumAmounts(incomeEntries);
+  const expenseTotal =
+    sumAmounts(fixedExpense) + sumAmounts(expenseEntries);
+
+  // The month sections' SUM footers total that section only; the balance bar
+  // is the one place fixed and this-month amounts are combined.
+  sumIncome.textContent = fmtVND(sumAmounts(incomeEntries));
+  sumExpense.textContent = expenseSum(sumAmounts(expenseEntries));
+  sumFixedIncome.textContent = fmtVND(sumAmounts(fixedIncome));
+  sumFixedExpense.textContent = expenseSum(sumAmounts(fixedExpense));
+
+  const summary = {
+    income: incomeTotal,
+    expense: expenseTotal,
+    ending: sheet.initial + incomeTotal - expenseTotal,
+  };
+  sheet.summary = summary;
+  renderBalance(summary, sheet.initial);
+}
+
+function visibleFixed(kind) {
+  return sheet.fixed.filter(
+    (row) => row.kind === kind && !pendingDeletes.has(rowKey(kind, row.id)),
+  );
+}
+
+function visibleEntries(kind) {
+  return sheet.entries.filter(
+    (entry) => entry.kind === kind && !pendingDeletes.has(rowKey(kind, entry.id)),
+  );
 }
 
 /** Adds `just-added` for the CSS flash, then clears it when the animation ends. */
@@ -172,25 +325,12 @@ function flash(row) {
   setTimeout(clear, 1800);
 }
 
-function applyToTotals(entry) {
-  const summary = sheet.summary;
-  if (entry.kind === "income" && entry.amount !== null) {
-    sheet.summary = {
-      ...summary,
-      income: summary.income + entry.amount,
-      ending: summary.ending + entry.amount,
-    };
-  } else if (entry.kind === "expense" && entry.amount !== null) {
-    sheet.summary = {
-      ...summary,
-      expense: summary.expense + entry.amount,
-      ending: summary.ending - entry.amount,
-    };
-  }
+function rowKey(kind, id) {
+  return `${kind}:${id}`;
 }
 
-function entriesOf(kind) {
-  return sheet.entries.filter((entry) => entry.kind === kind);
+function isFixedKind(kind) {
+  return kind === "fixed_income" || kind === "fixed_expense";
 }
 
 function sectionFor(kind) {

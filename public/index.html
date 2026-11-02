@@ -48,7 +48,7 @@
         </div>
         <div class="bar-actions">
           <button class="chip" id="today" type="button">• Today</button>
-          <button class="chip" id="export" type="button">⬇ Export</button>
+          <a class="chip" id="export" href="#" download title="Download this month as CSV">⬇ Export</a>
           <button class="chip" id="settings" type="button" title="Initial balance">⚙</button>
         </div>
       </header>
@@ -113,6 +113,7 @@
               </tr>
             </tfoot>
           </table>
+          <div class="add-row" data-add="income"><span>＋</span> New page</div>
         </section>
 
         <section class="section">
@@ -142,6 +143,7 @@
               </tr>
             </tfoot>
           </table>
+          <div class="add-row" data-add="expense"><span>＋</span> New page</div>
         </section>
 
         <section class="section">
@@ -220,6 +222,7 @@
             </thead>
             <tbody id="tb-notes"></tbody>
           </table>
+          <div class="add-row" data-add="note"><span>＋</span> New note</div>
         </section>
       </main>
 
@@ -236,6 +239,23 @@
         <div class="bal"><span class="blbl">⚖ Ending</span><b class="gold" id="bal-ending">—</b></div>
       </div>
     </div>
+
+    <!-- ⚙: the opening balance can be corrected any time after verify. -->
+    <dialog class="settings-dialog" id="settings-dialog">
+      <form id="settings-form" novalidate>
+        <h2>Initial balance</h2>
+        <p class="dialog-sub">Current: <b id="settings-current">—</b></p>
+        <label class="field">
+          <span>New balance (k ₫)</span>
+          <input id="settings-k" inputmode="numeric" autocomplete="off" placeholder="0" />
+        </label>
+        <p class="error" id="settings-error" role="alert"></p>
+        <div class="dialog-actions">
+          <button class="chip" id="settings-cancel" type="button">Cancel</button>
+          <button class="go" id="settings-save" type="submit">Save</button>
+        </div>
+      </form>
+    </dialog>
 
     <script type="module" src="/js/main.js"></script>
   </body>

@@ -7,8 +7,18 @@
 // action menus land in `render.js`/`editing.js` (Task 13).
 import { ApiError, getMe, getMonth, setInitialBalance, verifyPasscode } from "./api.js";
 import { renderComposer } from "./composer.js";
+import { initEditing } from "./editing.js";
 import { parseK, todayIso, ymLabel } from "./format.js";
-import { addEntry, renderMonth } from "./render.js";
+import {
+  addEntry,
+  forgetRow,
+  getInitial,
+  markRowDeleting,
+  patchRowModel,
+  renderMonth,
+  restoreRow,
+  setInitial,
+} from "./render.js";
 
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
@@ -38,6 +48,21 @@ let started = false;
 
 const composer = renderComposer({
   onSaved: addEntry,
+  onSessionExpired: () => showGate("Session expired — enter the passcode again."),
+});
+
+const editing = initEditing({
+  getInitial,
+  onEntryCreated: addEntry,
+  onRowPatched: patchRowModel,
+  onRowDeleting: markRowDeleting,
+  onRowRestored: restoreRow,
+  onRowForgotten: forgetRow,
+  onInitialSaved: setInitial,
+  onRefresh: () => {
+    if (activeYm !== null) void loadMonth(activeYm);
+  },
+  onNotice: showNotice,
   onSessionExpired: () => showGate("Session expired — enter the passcode again."),
 });
 
@@ -195,12 +220,14 @@ async function loadMonth(ym) {
   activeYm = ym;
   monthLabel.textContent = ymLabel(ym);
   composer.setMonth(ym);
+  editing.setMonth(ym);
   hideNotice();
 
   try {
     const view = await getMonth(ym);
     if (seq !== loadSeq) return;
     composer.setMonth(view.ym);
+    editing.setMonth(view.ym);
     renderMonth(view);
   } catch (error) {
     if (seq !== loadSeq) return;
