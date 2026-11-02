@@ -591,6 +591,27 @@ function draftRow(kind, date) {
     text.addEventListener("blur", () => void saveDraft(row));
   }
 
+  // `pointerdown` blurs a focused cell before the `click` lands on ✕, and that
+  // blur would otherwise POST the draft the user is discarding. Arm the discard
+  // first so `saveDraft` bails, then re-arm if the pointer is released
+  // elsewhere without a click actually discarding the row.
+  row.addEventListener(
+    "pointerdown",
+    (event) => {
+      if (event.target.closest('[data-action="discard"]') === null) return;
+      const state = draftState.get(row);
+      if (state !== undefined) state.discarding = true;
+    },
+    true,
+  );
+
+  for (const release of ["pointerup", "pointercancel"]) {
+    row.addEventListener(release, () => {
+      const state = draftState.get(row);
+      if (state !== undefined) state.discarding = false;
+    });
+  }
+
   row.addEventListener("click", (event) => {
     const action = event.target.closest("[data-action]");
     if (action === null || action.dataset.action !== "discard") return;
@@ -614,7 +635,7 @@ function editable(field, placeholder) {
 
 async function saveDraft(row, focusAmount = false) {
   const state = draftState.get(row);
-  if (state === undefined || state.saving) return;
+  if (state === undefined || state.saving || state.discarding) return;
 
   const item = state.item;
   item.name = textOf(row, "name").trim();
@@ -650,19 +671,32 @@ async function saveDraft(row, focusAmount = false) {
       comment: item.comment,
     });
 
+    const created = {
+      id: saved.id,
+      kind: item.kind,
+      name: item.name,
+      amount: item.amount,
+      date: item.date,
+      comment: item.comment,
+    };
+
+    // The row can be discarded while the POST is in flight (the ✕ handler runs
+    // after the blur that started this save, or Enter produced a slow request).
+    // Remove what we just created so a discarded draft does not come back on the
+    // next reload.
+    if (draftState.get(row) !== state || !row.isConnected) {
+      try {
+        await deleteEntry(saved.id);
+      } catch {
+        config.onNotice("Could not discard the new row. Try again.");
+        config.onEntryCreated(created, item.ym);
+      }
+      return;
+    }
+
     draftState.delete(row);
     row.remove();
-    config.onEntryCreated(
-      {
-        id: saved.id,
-        kind: item.kind,
-        name: item.name,
-        amount: item.amount,
-        date: item.date,
-        comment: item.comment,
-      },
-      item.ym,
-    );
+    config.onEntryCreated(created, item.ym);
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
       config.onSessionExpired();
@@ -676,12 +710,18 @@ async function saveDraft(row, focusAmount = false) {
 }
 
 function discardDraft(row) {
+  const state = draftState.get(row);
+  if (state !== undefined) state.discarding = true;
+
   draftState.delete(row);
   row.remove();
 }
 
 function discardDrafts() {
   for (const row of document.querySelectorAll("tr.draft")) {
+    const state = draftState.get(row);
+    if (state !== undefined) state.discarding = true;
+
     draftState.delete(row);
     row.remove();
   }
