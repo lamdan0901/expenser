@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Expenser — November 2026 (Mockup v2)</title>
+<style>
+  :root{
+    --bg:#191919; --panel:#202020; --panel2:#252525; --line:#333;
+    --text:#e6e6e6; --dim:#9b9b9b; --faint:#6f6f6f;
+    --accent:#7c9cff; --green:#6fcf8f; --red:#e57373; --gold:#d8b46a;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--bg); color:var(--text);
+    font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,sans-serif;
+    font-size:14px; padding-bottom:90px;}
+
+  /* ── Top bar ─────────────────────────────── */
+  header{display:flex; align-items:center; justify-content:space-between;
+    padding:12px 28px; border-bottom:1px solid var(--line);
+    position:sticky; top:0; background:rgba(25,25,25,.92); backdrop-filter:blur(6px); z-index:20;}
+  .brand{display:flex; align-items:center; gap:10px; font-weight:600; font-size:15px;}
+  .brand .dot{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#7c9cff,#5a6fd8);
+    display:grid;place-items:center;font-size:14px;}
+  .month-nav{display:flex; align-items:center; gap:8px;
+    background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:4px 10px;}
+  .month-nav button{background:none;border:none;color:var(--dim);cursor:pointer;
+    font-size:14px;padding:2px 6px;border-radius:5px;}
+  .month-nav button:hover{background:#333;color:var(--text);}
+  .month-nav .cur{font-weight:600; min-width:150px; text-align:center;}
+  .chip{font-size:12px;color:var(--dim);border:1px solid var(--line);
+    border-radius:6px;padding:3px 9px;cursor:pointer;}
+  .chip:hover{background:var(--panel2);color:var(--text);}
+
+  /* ── Quick composer ──────────────────────── */
+  .composer-wrap{padding:16px 28px 0; max-width:980px; margin:0 auto;}
+  .composer{background:var(--panel2); border:1px solid #3d3d3d; border-radius:12px;
+    padding:10px 12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    box-shadow:0 4px 18px rgba(0,0,0,.35);}
+  .composer:focus-within{border-color:#5a6fd8;}
+  .seg{display:flex; background:#1c1c1c; border:1px solid var(--line); border-radius:8px; overflow:hidden;}
+  .seg button{border:none; background:none; color:var(--dim); padding:7px 14px; cursor:pointer; font-size:13px;}
+  .seg button.on.exp{background:#3a2426; color:var(--red);}
+  .seg button.on.inc{background:#22332a; color:var(--green);}
+  .composer input{flex:1; min-width:110px; background:transparent; border:none; outline:none;
+    color:var(--text); font-size:14px; padding:7px 4px;}
+  .composer input::placeholder{color:var(--faint);}
+  .composer .amt::before{content:"$"; color:var(--faint); font-size:12px;}
+  .dater{position:relative; display:flex; align-items:center; gap:5px;
+    color:var(--dim); font-size:12px; border:1px solid var(--line); border-radius:8px;
+    padding:6px 9px; cursor:pointer; white-space:nowrap;}
+  .dater:hover{background:#2e2e2e;}
+  .dater input{position:absolute; inset:0; opacity:0; cursor:pointer;}
+  .dater.has{color:var(--accent); border-color:#4a5a9a; background:#20263a;}
+  .composer .go{margin-left:auto;}
+  .composer .go{background:#5a6fd8; color:#fff; border:none; border-radius:8px;
+    padding:8px 16px; cursor:pointer; font-size:13px; font-weight:600;}
+  .composer .go:hover{background:#6d80e5;}
+  .hint{font-size:11.5px; color:var(--faint); padding:6px 4px 0;}
+  .hint kbd{background:#2c2c2c; border:1px solid var(--line); border-radius:4px;
+    padding:0 5px; font-family:inherit; font-size:10.5px;}
+
+  /* ── Sections ────────────────────────────── */
+  .wrap{max-width:980px; margin:0 auto; padding:10px 28px;}
+  .section{margin-top:24px;}
+  .sec-head{display:flex; align-items:center; gap:8px; margin-bottom:8px;}
+  .sec-head .toggle{color:var(--dim); cursor:pointer; font-size:12px; width:18px; text-align:center;}
+  .sec-head .icon{font-size:15px;}
+  .sec-head h2{font-size:15px; font-weight:600;}
+  .sec-head .tag{font-size:11px; color:var(--faint); border:1px solid var(--line);
+    padding:1px 8px; border-radius:10px; margin-left:6px;}
+  .sec-head .tag.repeat{color:#9db1e8; border-color:#3a4664;}
+
+  table{width:100%; border-collapse:collapse; background:var(--panel);
+    border:1px solid var(--line); border-radius:8px; overflow:hidden;}
+  thead th{font-size:12.5px; font-weight:500; color:var(--dim); text-align:left;
+    padding:9px 12px; border-bottom:1px solid var(--line); background:#1e1e1e; white-space:nowrap;}
+  thead th .hicon{opacity:.75; margin-right:6px;}
+  thead th.num-col{width:140px;} thead th.date-col{width:150px;}
+  thead th.act{width:76px;} thead th.drag-col{width:34px;}
+  tbody td{padding:9px 12px; border-bottom:1px solid #2a2a2a; vertical-align:top;}
+  tbody tr:hover td{background:#232323;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr.just-added td{animation:flash 1.6s ease-out;}
+  @keyframes flash{0%{background:#3a4633;}100%{background:transparent;}}
+  tbody tr.dragging{opacity:.35;}
+  tbody tr.drop-target td{border-top:2px solid var(--accent);}
+  .handle{color:var(--faint); cursor:grab; opacity:0; font-size:13px; letter-spacing:-2px;
+    user-select:none; text-align:center; display:block;}
+  tr:hover .handle{opacity:.85;}
+  tr.dragging .handle{opacity:.8; cursor:grabbing;}
+  .cell-name{display:flex; align-items:flex-start; gap:8px; font-weight:500; outline:none;}
+  .page-icon{opacity:.85; font-size:13px;}
+  .amount{font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .amount .cur{color:var(--faint); font-size:11px; margin-right:1px;}
+  .amount.debit{color:var(--red);}
+  .amount.credit{color:var(--green);}
+  .date{color:var(--dim);}
+  .comment{color:var(--dim); font-size:13px; line-height:1.5; outline:none;}
+  .row-act{text-align:right; color:var(--faint); white-space:nowrap; font-size:13px;}
+  .row-act span{cursor:pointer; padding:2px 5px; border-radius:4px;}
+  .row-act span:hover{background:#333; color:var(--text);}
+  .add-row{display:flex; align-items:center; gap:8px; padding:8px 12px;
+    color:var(--faint); cursor:pointer; font-size:13.5px;
+    background:#1e1e1e; border-radius:0 0 8px 8px;}
+  .add-row:hover{color:var(--text); background:#242424;}
+  tfoot td{padding:8px 12px; background:#1e1e1e; font-size:12.5px; color:var(--dim);
+    border-top:1px solid var(--line);}
+  tfoot .sum{color:var(--text); font-weight:600; font-variant-numeric:tabular-nums;}
+
+  .collapsed .server-table, .collapsed .add-row{display:none;}
+  .collapsed .toggle .tri{transform:rotate(-90deg); display:inline-block;}
+  [contenteditable]:focus{background:#1d222e; border-radius:4px; box-shadow:0 0 0 1px var(--accent);}
+
+  /* ── Footer balance bar ──────────────────── */
+  .balance-bar{position:fixed; bottom:0; left:0; right:0;
+    background:rgba(30,30,30,.97); border-top:1px solid var(--line);
+    display:flex; justify-content:center; gap:0; padding:12px 0 14px; backdrop-filter:blur(6px); z-index:20;}
+  .bal{display:flex; flex-direction:column; gap:3px; padding:0 34px; border-right:1px solid #2e2e2e;}
+  .bal:last-child{border-right:none;}
+  .bal .blbl{display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--dim);}
+  .bal b{font-size:18px; color:var(--text); font-variant-numeric:tabular-nums; letter-spacing:-.3px;}
+  .bal b.green{color:var(--green);} .bal b.red{color:var(--red);} .bal b.gold{color:var(--gold);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand"><div class="dot">💸</div> Expenser</div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <div class="month-nav">
+      <button>◀</button>
+      <span class="cur">November 2026</span>
+      <button>▶</button>
+    </div>
+    <span class="chip">• Today</span>
+  </div>
+  <div style="display:flex;gap:10px">
+    <span class="chip">⬇ Export</span>
+    <span class="chip">⚙</span>
+  </div>
+</header>
+
+<!-- ── FAST CAPTURE: money just moved ── -->
+<div class="composer-wrap">
+  <div class="composer" id="composer">
+    <div class="seg" id="seg">
+      <button class="on exp" data-type="exp">📤 Expense</button>
+      <button data-type="inc">📥 Income</button>
+    </div>
+    <input id="f-name" placeholder="What was it?" autofocus>
+    <input id="f-amt" class="amt" placeholder="0" style="max-width:110px" inputmode="decimal">
+    <input id="f-note" placeholder="Comment (optional)">
+    <label class="dater" id="f-dwrap" title="Date — defaults to today">
+      📅<span id="f-dlbl">Today</span>
+      <input type="date" id="f-date">
+    </label>
+    <button class="go" id="f-go">Log it ↵</button>
+  </div>
+  <div class="hint"><kbd>Esc</kbd> direction · <kbd>↵</kbd> saves to the top · date defaults to <b>today</b> — pick 📅 for another day · drag <span style="letter-spacing:-2px">⠿</span> to reorder</div>
+</div>
+
+<div class="wrap">
+
+  <!-- INCOME THIS MONTH -->
+  <div class="section">
+    <div class="sec-head" onclick="this.parentElement.classList.toggle('collapsed')">
+      <span class="toggle"><span class="tri">▾</span></span>
+      <span class="icon">📥</span><h2>Income — this month</h2>
+    </div>
+    <table class="server-table">
+      <thead><tr>
+        <th class="drag-col"></th>
+        <th><span class="hicon">Aa</span>Item</th>
+        <th class="num-col"><span class="hicon">#</span>Amount</th>
+        <th class="date-col"><span class="hicon">📅</span>Date</th>
+        <th><span class="hicon">≡</span>Comment</th>
+        <th class="act"><span class="hicon">＋</span><span class="hicon">···</span></th>
+      </tr></thead>
+      <tbody id="tb-income" class="sortable">
+        <tr>
+          <td><span class="handle" draggable="true">⠿⠿</span></td>
+          <td><span class="cell-name" contenteditable><span class="page-icon">📄</span><span class="txt">Sold NB Azorb</span></span></td>
+          <td><span class="amount credit" contenteditable><span class="cur">$</span><span class="txt">800.00</span></span></td>
+          <td class="date">November 2, 2026</td>
+          <td><span class="comment" contenteditable><span class="txt">+800</span></span></td>
+          <td class="row-act">⚙ ⋮</td></tr>
+        <tr>
+          <td><span class="handle" draggable="true">⠿⠿</span></td>
+          <td><span class="cell-name" contenteditable><span class="page-icon">📄</span><span class="txt">Prev month carry-over</span></span></td>
+          <td><span class="amount credit" contenteditable><span class="cur">$</span><span class="txt">8,000.00</span></span></td>
+          <td class="date">November 1, 2026</td>
+          <td><span class="comment" contenteditable><span class="txt">minh có 2 chi vàng bác hoá vay 15tr</span></span></td>
+          <td class="row-act">⚙ ⋮</td></tr>
+      </tbody>
+      <tfoot><tr><td></td><td>SUM</td><td class="sum" id="sum-income">$8,800.00</td><td colspan="2"></td><td></td></tr></tfoot>
+    </table>
+    <div class="add-row" onclick="addRow('tb-income')"><span>＋</span> New page</div>
+  </div>
+
+  <!-- EXPENSES THIS MONTH -->
+  <div class="section">
+    <div class="sec-head" onclick="this.parentElement.classList.toggle('collapsed')">
+      <span class="toggle"><span class="tri">▾</span></span>
+      <span class="icon">📤</span><h2>Expenses — this month</h2>
+    </div>
+    <table class="server-table">
+      <thead><tr>
+        <th class="drag-col"></th>
+        <th><span class="hicon">Aa</span>Item</th>
+        <th class="num-col"><span class="hicon">#</span>Amount</th>
+        <th class="date-col"><span class="hicon">📅</span>Date</th>
+        <th><span class="hicon">≡</span>Comment</th>
+        <th class="act"><span class="hicon">＋</span><span class="hicon">···</span></th>
+      </tr></thead>
+      <tbody id="tb-expense" class="sortable">
+        <tr>
+          <td><span class="handle" draggable="true">⠿⠿</span></td>
+          <td><span class="cell-name" contenteditable><span class="page-icon">📄</span><span class="txt">lấy thêm thuốc</span></span></td>
+          <td><span class="amount debit" contenteditable>−<span class="cur">$</span><span class="txt">800.00</span></span></td>
+          <td class="date">November 3, 2026</td>
+          <td><span class="comment" contenteditable><span class="txt"></span></span></td>
+          <td class="row-act">⚙ ⋮</td></tr>
+        <tr>
+          <td><span class="handle" draggable="true">⠿⠿</span></td>
+          <td><span class="cell-name" contenteditable><span class="page-icon">📄</span><span class="txt">Đổ xăng</span></span></td>
+          <td><span class="amount debit" contenteditable>−<span class="cur">$</span><span class="txt">170.00</span></span></td>
+          <td class="date">November 2, 2026</td>
+          <td><span class="comment" contenteditable><span class="txt">odo 3788 - 20/10</span></span></td>
+          <td class="row-act">⚙ ⋮</td></tr>
+      </tbody>
+      <tfoot><tr><td></td><td>SUM</td><td class="sum" id="sum-expense">−$970.00</td><td colspan="2"></td><td></td></tr></tfoot>
+    </table>
+    <div class="add-row" onclick="addRow('tb-expense')"><span>＋</span> New page</div>
+  </div>
+
+  <!-- FIXED INCOME -->
+  <div class="section">
+    <div class="sec-head" onclick="this.parentElement.classList.toggle('collapsed')">
+      <span class="toggle"><span class="tri">▾</span></span>
+      <span class="icon">💰</span><h2>Fixed Income</h2>
+      <span class="tag repeat">repeats every month</span>
+    </div>
+    <table class="server-table">
+      <thead><tr>
+        <th class="drag-col"></th>
+        <th><span class="hicon">Aa</span>Item</th>
+        <th class="num-col"><span class="hicon">#</span>Amount</th>
+        <th><span class="hicon">≡</span>Comment</th>
+        <th class="act"><span class="hicon">＋</span><span class="hicon">···</span></th>
+      </tr></thead>
+      <tbody id="tb-fixedinc" class="sortable">
+        <tr>
+          <td><span class="handle" draggable="true">⠿⠿</span></td>
+          <td><span class="cell-name" contenteditable><span class="page-icon">📄</span><span class="txt">Salary</span></span></td>
+          <td><span class="amount credit" contenteditable><span class="cur">$</span><span class="txt">1,600.00</span></span></td>
+          <td><span class="comment" contenteditable><span class="txt">on the 5th</span></span></td>
+          <td class="row-act">⚙ ⋮</td></tr>
+        <tr>
+          <td><span class="handle" draggable="true">⠿⠿</span></td>
+          <td><span class="cell-name" contenteditable><span class="page-icon">📄</span><span class="txt">Room rent (tenant)</span></span></td>
+          <td><span class="amount credit" contenteditable><span class="cur">$</span><span class="txt">200.00</span></span></td>
+          <td><span class="comment" contenteditable><span class="txt"></span></span></td>
+          <td class="row-act">⚙ ⋮</td></tr>
+      </tbody>
+      <tfoot><tr><td></td><td>SUM</td><td class="sum">$1,800.00</td><td></td><td></td></tr></tfoot>
+    </table>
+  </div>
+
+  <!-- FIXED EXPENSE -->
+  <div class="section">
+    <div class="sec-head" onclick="this.parentElement.classList.toggle('collapsed')">
+      <span class="toggle"><span class="tri">▾</span></span>
+      <span class="icon">📌</span><h2>Fixed Expenses</h2>
+      <span class="tag repeat">repeats every month</span>
+    </div>
+    <table class="server-table">
+      <thead><tr>
+        <th class="drag-col"></th>
+        <th><span class="hicon">Aa</span>Item</th>
+        <th class="num-col"><span class="hicon">#</span>Amount</th>
+        <th><span class="hicon">≡</span>Comment</th>
+        <th class="act"><span class="hicon">＋</span><span class="hicon">···</span></th>
+      </tr></thead>
+      <tbody id="tb-fixedexp" class="sortable">
+        <tr>
+          <td><span class="handle" draggable="true">⠿⠿</span></td>
+          <td><span class="cell-name" contenteditable><span class="page-icon">📄</span><span class="txt">Internet</span></span></td>
+          <td><span class="amount debit" contenteditable>−<span class="cur">$</span><span class="txt">170.00</span></span></td>
+          <td><span class="comment" contenteditable><span class="txt"></span></span></td>
+          <td class="row-act">⚙ ⋮</td></tr>
+        <tr>
+          <td><span class="handle" draggable="true">⠿⠿</span></td>
+          <td><span class="cell-name" contenteditable><span class="page-icon">📄</span><span class="txt">Roomfee</span></span></td>
+          <td><span class="amount debit" contenteditable>−<span class="cur">$</span><span class="txt">500.00</span></span></td>
+          <td><span class="comment" contenteditable><span class="txt">paid on the 5th</span></span></td>
+          <td class="row-act">⚙ ⋮</td></tr>
+      </tbody>
+      <tfoot><tr><td></td><td>SUM</td><td class="sum">−$670.00</td><td></td><td></td></tr></tfoot>
+    </table>
+  </div>
+
+  <!-- EXTRA & NOTES -->
+  <div class="section">
+    <div class="sec-head" onclick="this.parentElement.classList.toggle('collapsed')">
+      <span class="toggle"><span class="tri">▾</span></span>
+      <span class="icon">📝</span><h2>Extra & Notes</h2>
+      <span class="tag">no math unless you want</span>
+    </div>
+    <table class="server-table">
+      <thead><tr>
+        <th class="drag-col"></th>
+        <th><span class="hicon">Aa</span>Note</th>
+        <th class="date-col"><span class="hicon">📅</span>Date</th>
+        <th><span class="hicon">≡</span>Comment</th>
+        <th class="act"><span class="hicon">＋</span><span class="hicon">···</span></th>
+      </tr></thead>
+      <tbody id="tb-notes" class="sortable">
+        <tr>
+          <td><span class="handle" draggable="true">⠿⠿</span></td>
+          <td><span class="cell-name" contenteditable><span class="page-icon">📄</span><span class="txt">Check nhót đ odo 4600</span></span></td>
+          <td class="date">October 30, 2026</td>
+          <td><span class="comment" contenteditable><span class="txt">A són 85tr | Còn = 57,947 k</span></span></td>
+          <td class="row-act">⚙ ⋮</td></tr>
+        <tr>
+          <td><span class="handle" draggable="true">⠿⠿</span></td>
+          <td><span class="cell-name" contenteditable><span class="page-icon">📄</span><span class="txt">Idea: cancel unused subs next month</span></span></td>
+          <td class="date">November 1, 2026</td>
+          <td><span class="comment" contenteditable><span class="txt">check spotify + netflix invoices</span></span></td>
+          <td class="row-act">⚙ ⋮</td></tr>
+      </tbody>
+    </table>
+    <div class="add-row" onclick="addRow('tb-notes')"><span>＋</span> New note</div>
+  </div>
+
+</div>
+
+<div class="balance-bar">
+  <div class="bal"><span class="blbl">🏦 Initial</span><b>$20,000.00</b></div>
+  <div class="bal"><span class="blbl">📥 Income (fixed + this month)</span><b class="green">$9,600.00</b></div>
+  <div class="bal"><span class="blbl">📤 Expense (fixed + this month)</span><b class="red">−$1,540.00</b></div>
+  <div class="bal"><span class="blbl">⚖ Ending</span><b class="gold">$28,060.00</b></div>
+</div>
+
+<script>
+var TYPE='exp';
+document.querySelectorAll('#seg button').forEach(b=>{
+  b.onclick=()=>{TYPE=b.dataset.type;
+    document.querySelectorAll('#seg button').forEach(x=>x.classList.remove('on','exp','inc'));
+    b.classList.add('on',TYPE); document.getElementById('f-name').focus();};
+});
+document.getElementById('f-name').focus();
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){segmentFlip(); e.preventDefault();}
+  if((e.key==='n'||e.key==='N')&&!e.target.isContentEditable&&!/INPUT|TEXTAREA/.test(e.target.tagName)){
+    document.getElementById('f-name').focus(); e.preventDefault();}
+  if(e.key==='Enter'&&!e.target.isContentEditable)document.getElementById('f-go').click();
+});
+function segmentFlip(){
+  var btns=document.querySelectorAll('#seg button');
+  (TYPE==='exp'?btns[1]:btns[0]).click();
+}
+function fmt(n){return n.toLocaleString('en-US',{minimumFractionDigits:2});}
+function isoToday(){return new Date().toISOString().slice(0,10);}
+function pretty(iso){
+  var d=new Date(iso+'T00:00:00');
+  return d.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+}
+function fmtDate(){
+  var inp=document.getElementById('f-date');
+  var wrap=document.getElementById('f-dwrap');
+  if(inp.value&&inp.value!==isoToday()){
+    wrap.classList.add('has');
+    var d=new Date(inp.value+'T00:00:00');
+    document.getElementById('f-dlbl').textContent=
+      d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  }else{
+    wrap.classList.remove('has');
+    inp.value=isoToday();
+    document.getElementById('f-dlbl').textContent='Today';
+  }
+}
+function resetDate(){
+  var inp=document.getElementById('f-date');
+  inp.value=isoToday(); fmtDate();
+}
+/* init date picker to today */
+document.getElementById('f-date').value=isoToday();
+document.getElementById('f-date').addEventListener('change',fmtDate);
+function addRow(tbId){
+  var tb=document.getElementById(tbId);
+  var tr=tb.insertRow(0); tr.className='just-added';
+  tr.innerHTML='<td><span class="handle" draggable="true">⠿⠿</span></td>'
+    +'<td><span class="cell-name" contenteditable><span class="page-icon">📄</span><span class="txt">New item</span></span></td>'
+    +'<td><span class="amount credit" contenteditable><span class="cur">$</span><span class="txt">0.00</span></span></td>'
+    +'<td class="date">'+pretty(isoToday())+'</td>'
+    +'<td><span class="comment" contenteditable><span class="txt"></span></span></td>'
+    +'<td class="row-act">⚙ ⋮</td>';
+  if(tbId==='tb-notes'){tr.deleteCell(2);}
+  wireDnD(tr);
+  tr.querySelector('.cell-name .txt').focus();
+}
+
+/* ---- composer save ---- */
+document.getElementById('f-go').onclick=()=>{
+  var name=document.getElementById('f-name').value.trim();
+  var amt=parseFloat(document.getElementById('f-amt').value.replace(/,/g,''))||0;
+  var note=document.getElementById('f-note').value.trim();
+  if(!name&&!amt)return;
+  document.getElementById('f-name').value='';document.getElementById('f-amt').value='';document.getElementById('f-note').value='';
+  var tb=document.getElementById(TYPE==='exp'?'tb-expense':'tb-income');
+  var tr=tb.insertRow(0); tr.className='just-added';
+  var sign=TYPE==='exp'?'−<span class="cur">$</span>':'<span class="cur">$</span>';
+  var cls=TYPE==='exp'?'debit':'credit';
+  tr.innerHTML='<td><span class="handle" draggable="true">⠿⠿</span></td>'
+    +'<td><span class="cell-name" contenteditable><span class="page-icon">📄</span><span class="txt">'+(name||'Untitled')+'</span></span></td>'
+    +'<td><span class="amount '+cls+'" contenteditable>'+sign+'<span class="txt">'+(amt?fmt(amt):'0.00')+'</span></span></td>'
+    +'<td class="date">'+pretty(document.getElementById('f-date').value)+'</td>'
+    +'<td><span class="comment" contenteditable><span class="txt">'+note+'</span></span></td>'
+    +'<td class="row-act">⚙ ⋮</td>';
+  resetDate();
+  wireDnD(tr);
+  tb.closest('.section').classList.remove('collapsed');
+};
+
+/* ---- drag to reorder ---- */
+function wireDnD(tr){
+  tr.querySelectorAll('[contenteditable]').forEach(c=>{
+    c.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();c.blur();}});
+  });
+}
+document.querySelectorAll('tbody.sortable').forEach(tb=>{
+  var dragRow=null;
+  tb.addEventListener('dragstart',e=>{
+    var row=e.target.closest('tr'); if(!row)return;
+    dragRow=row; row.classList.add('dragging');
+    e.dataTransfer.effectAllowed='move';
+  });
+  tb.addEventListener('dragend',()=>{
+    if(dragRow)dragRow.classList.remove('dragging');
+    tb.querySelectorAll('.drop-target').forEach(r=>r.classList.remove('drop-target'));
+    dragRow=null;
+  });
+  tb.addEventListener('dragover',e=>{
+    e.preventDefault();
+    var over=e.target.closest('tr'); if(!over||over===dragRow)return;
+    tb.querySelectorAll('.drop-target').forEach(r=>r.classList.remove('drop-target'));
+    over.classList.add('drop-target');
+  });
+  tb.addEventListener('drop',e=>{
+    e.preventDefault();
+    var over=e.target.closest('tr');
+    if(over&&dragRow&&over!==dragRow) tb.insertBefore(dragRow,over);
+    dragRow=null;
+  });
+});
+</script>
+</body>
+</html>
