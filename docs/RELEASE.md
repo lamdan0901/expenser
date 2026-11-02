@@ -9,7 +9,7 @@ npx wrangler deploy
 ```
 
 Live URL: https://expenser.lamdan0901.workers.dev
-Version: 640e4db5-934f-4b80-8127-1ee1ee17d55b · migration 0001_init.sql applied ✅
+Version: 34ad4c60-fe0b-4767-899e-91ee3b276d30 (redeployed after final-review fixes: fixed-item creation UI, setup accepts 0, Secure cookie) · migration 0001_init.sql applied ✅
 
 ## Post-deploy smoke (verified)
 
