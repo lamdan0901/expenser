@@ -55,6 +55,36 @@
 
       <p class="notice" id="notice" role="status" hidden></p>
 
+      <!-- Fast capture: Enter in any field saves to the top of the open sheet. -->
+      <div class="composer-wrap">
+        <form class="composer" id="composer" novalidate>
+          <div class="seg" id="seg">
+            <button class="on exp" type="button" data-kind="expense">📤 Expense</button>
+            <button type="button" data-kind="income">📥 Income</button>
+          </div>
+          <input id="f-name" placeholder="What was it?" autocomplete="off" aria-label="Item name" />
+          <input
+            id="f-amt"
+            class="amt"
+            placeholder="Amount (k ₫)"
+            inputmode="numeric"
+            autocomplete="off"
+            aria-label="Amount in thousands of dong"
+          />
+          <input id="f-note" placeholder="Comment (optional)" autocomplete="off" aria-label="Comment" />
+          <label class="dater" id="f-dwrap" title="Date — defaults to today">
+            📅<span id="f-dlbl">Today</span>
+            <input type="date" id="f-date" aria-label="Entry date" />
+          </label>
+          <button class="go" id="f-go" type="submit">Log it ↵</button>
+        </form>
+        <p class="composer-error" id="f-error" role="alert" hidden></p>
+        <div class="hint">
+          <kbd>Esc</kbd> direction · <kbd>↵</kbd> saves to the top · date defaults to
+          <b>today</b> — pick 📅 for another day
+        </div>
+      </div>
+
       <main class="wrap">
         <section class="section">
           <div class="sec-head">

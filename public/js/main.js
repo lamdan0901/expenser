@@ -1,17 +1,14 @@
-// Frontend shell: passcode gate, first-run setup, month navigation.
+// Frontend coordinator: passcode gate, first-run setup, month navigation.
 //
 // The API is the source of truth for every number on screen. This module boots
-// the page, gates it behind the signed cookie, then fetches the visible month
-// and hands it to `renderMonth`. Tasks 12–13 extend that seam with the five
-// full tables, the composer and inline editing.
-import {
-  ApiError,
-  getMe,
-  getMonth,
-  setInitialBalance,
-  verifyPasscode,
-} from "./api.js";
-import { fmtVND, parseK, todayIso, ymLabel } from "./format.js";
+// the page, gates it behind the signed cookie, decides which month is visible
+// and hands the fetched sheet to `render.js`; `composer.js` owns the fast
+// capture form. Keep this file a thin shell — inline editing, drag and the
+// action menus land in `render.js`/`editing.js` (Task 13).
+import { ApiError, getMe, getMonth, setInitialBalance, verifyPasscode } from "./api.js";
+import { renderComposer } from "./composer.js";
+import { parseK, todayIso, ymLabel } from "./format.js";
+import { addEntry, renderMonth } from "./render.js";
 
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
@@ -32,26 +29,17 @@ const nextMonth = byId("next-month");
 const todayChip = byId("today");
 const notice = byId("notice");
 
-const tbIncome = byId("tb-income");
-const tbExpense = byId("tb-expense");
-const tbFixedIncome = byId("tb-fixedinc");
-const tbFixedExpense = byId("tb-fixedexp");
-const tbNotes = byId("tb-notes");
-
-const sumFixedIncome = byId("sum-fixedinc");
-const sumFixedExpense = byId("sum-fixedexp");
-
-const balInitial = byId("bal-initial");
-const balIncome = byId("bal-income");
-const balExpense = byId("bal-expense");
-const balEnding = byId("bal-ending");
-
 /** Month currently being shown, even while its fetch is in flight. */
 let activeYm = null;
 /** Only the newest fetch may paint; older responses are discarded. */
 let loadSeq = 0;
 /** Navigation listeners are installed once, after the first successful gate. */
 let started = false;
+
+const composer = renderComposer({
+  onSaved: addEntry,
+  onSessionExpired: () => showGate("Session expired — enter the passcode again."),
+});
 
 function byId(name) {
   return document.getElementById(name);
@@ -172,6 +160,7 @@ function startApp() {
     history.replaceState(null, "", `#${ym}`);
   }
   void loadMonth(ym);
+  composer.focusName();
 }
 
 function currentYm() {
@@ -205,11 +194,13 @@ async function loadMonth(ym) {
   const seq = ++loadSeq;
   activeYm = ym;
   monthLabel.textContent = ymLabel(ym);
+  composer.setMonth(ym);
   hideNotice();
 
   try {
     const view = await getMonth(ym);
     if (seq !== loadSeq) return;
+    composer.setMonth(view.ym);
     renderMonth(view);
   } catch (error) {
     if (seq !== loadSeq) return;
@@ -223,80 +214,7 @@ async function loadMonth(ym) {
   }
 }
 
-// ── Screen rendering ──────────────────────────────────────────────────────
-
-// Skeleton for now: fixed template rows plus the always-visible balance bar.
-// Task 12 replaces this with the full five-section renderer (entries, notes,
-// footers, composer); the data it needs is already in `view`.
-function renderMonth(view) {
-  const fixedIncome = renderFixed(view.fixed, "fixed_income", tbFixedIncome);
-  const fixedExpense = renderFixed(view.fixed, "fixed_expense", tbFixedExpense);
-
-  sumFixedIncome.textContent = fmtVND(fixedIncome);
-  sumFixedExpense.textContent =
-    fixedExpense === 0 ? fmtVND(0) : `−${fmtVND(fixedExpense)}`;
-
-  for (const tbody of [tbIncome, tbExpense, tbNotes]) {
-    tbody.replaceChildren();
-  }
-
-  renderBalance(view.summary, view.initial);
-}
-
-/** Renders one fixed section and returns its total, for the SUM footer. */
-function renderFixed(rows, kind, tbody) {
-  const matching = rows.filter((row) => row.kind === kind);
-
-  tbody.replaceChildren(...matching.map((row) => fixedRow(row, kind)));
-
-  return matching.reduce((total, row) => total + row.amount, 0);
-}
-
-function fixedRow(row, kind) {
-  const tr = el("tr");
-  tr.dataset.id = String(row.id);
-  if (row.id < 0) tr.dataset.virtual = "true";
-
-  const handle = el("td");
-  handle.append(el("span", "handle", "⠿⠿"));
-
-  const name = el("td");
-  const cellName = el("span", "cell-name");
-  cellName.append(el("span", "page-icon", "📄"), el("span", "txt", row.name));
-  name.append(cellName);
-
-  const amount = el("td");
-  const amountText = el("span", `amount ${kind === "fixed_income" ? "credit" : "debit"}`);
-  if (kind === "fixed_expense") amountText.append("−");
-  amountText.append(el("span", "txt", fmtVND(row.amount)));
-  amount.append(amountText);
-
-  const comment = el("td");
-  comment.append(el("span", "comment", row.comment));
-
-  const actions = el("td", "row-act", "⚙ ⋮");
-
-  tr.append(handle, name, amount, comment, actions);
-  return tr;
-}
-
-function renderBalance(summary, initial) {
-  balInitial.textContent = fmtVND(initial);
-  balIncome.textContent = fmtVND(summary.income);
-  balExpense.textContent = summary.expense === 0 ? fmtVND(0) : `−${fmtVND(summary.expense)}`;
-  balEnding.textContent = fmtVND(summary.ending);
-  balEnding.classList.toggle("red", summary.ending < 0);
-  balEnding.classList.toggle("gold", summary.ending >= 0);
-}
-
 // ── Small helpers ─────────────────────────────────────────────────────────
-
-function el(tag, className, text) {
-  const node = document.createElement(tag);
-  if (className !== undefined) node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
 
 function setBusy(form, busy) {
   for (const control of form.elements) control.disabled = busy;
