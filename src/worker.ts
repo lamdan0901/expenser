@@ -15,6 +15,7 @@ import {
 } from "./fixed-rows";
 import { handleGetMonth } from "./month";
 import { handleInitialBalance, handleMe, handlePasscode } from "./setup";
+import { handleExportMonth, handleGetSummary } from "./summary";
 import {
   handleCreateTemplate,
   handleDeleteTemplate,
@@ -52,6 +53,16 @@ export default {
       const monthRoute = /^\/api\/month\/([^/]+)$/.exec(pathname);
       if (monthRoute !== null && request.method === "GET") {
         return handleGetMonth(env, monthRoute[1]);
+      }
+
+      const summaryRoute = /^\/api\/summary\/([^/]+)$/.exec(pathname);
+      if (summaryRoute !== null && request.method === "GET") {
+        return handleGetSummary(env, summaryRoute[1]);
+      }
+
+      const exportRoute = /^\/api\/month\/([^/]+)\/export$/.exec(pathname);
+      if (exportRoute !== null && request.method === "GET") {
+        return handleExportMonth(env, exportRoute[1]);
       }
 
       const entryRoute = /^\/api\/month\/([^/]+)\/entry$/.exec(pathname);
