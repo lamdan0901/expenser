@@ -8,6 +8,10 @@ export default defineConfig({
   plugins: [
     cloudflareTest({
       wrangler: { configPath: "./wrangler.toml" },
+      miniflare: {
+        // Tests sign their own cookies; production reads the PASSCODE secret.
+        bindings: { PASSCODE: "test-secret" },
+      },
     }),
   ],
 });
