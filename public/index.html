@@ -4,11 +4,209 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Expenser</title>
+    <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
-    <main>
-      <h1>Expenser</h1>
-      <p>Scaffold placeholder — the app UI arrives in a later task.</p>
-    </main>
+    <!-- Passcode gate: the only thing shown until the signed cookie is valid. -->
+    <div class="gate" id="gate" hidden>
+      <form class="card" id="gate-form" novalidate>
+        <div class="brand gate-brand"><div class="dot">💸</div><h1>Expenser</h1></div>
+        <p class="card-sub">Enter the passcode to open your sheet.</p>
+        <label class="field">
+          <span>Passcode</span>
+          <input id="passcode" type="password" autocomplete="current-password" required />
+        </label>
+        <p class="error" id="gate-error" role="alert"></p>
+        <button class="go" type="submit">Unlock</button>
+      </form>
+    </div>
+
+    <!-- First run: the opening balance, entered in whole thousands. -->
+    <div class="gate" id="setup" hidden>
+      <form class="card" id="setup-form" novalidate>
+        <div class="brand gate-brand"><div class="dot">💸</div><h1>Starting point</h1></div>
+        <p class="card-sub">
+          What is your opening balance? Enter whole thousands — <b>20,000</b> means
+          20,000,000 ₫.
+        </p>
+        <label class="field">
+          <span>Initial balance (k ₫)</span>
+          <input id="initial-k" inputmode="numeric" autocomplete="off" placeholder="0" required />
+        </label>
+        <p class="error" id="setup-error" role="alert"></p>
+        <button class="go" type="submit">Start tracking</button>
+      </form>
+    </div>
+
+    <div id="app" hidden>
+      <header>
+        <div class="brand"><div class="dot">💸</div>Expenser</div>
+        <div class="month-nav">
+          <button id="prev-month" type="button" aria-label="Previous month">◀</button>
+          <span class="cur" id="month-label">—</span>
+          <button id="next-month" type="button" aria-label="Next month">▶</button>
+        </div>
+        <div class="bar-actions">
+          <button class="chip" id="today" type="button">• Today</button>
+          <button class="chip" id="export" type="button">⬇ Export</button>
+          <button class="chip" id="settings" type="button" title="Initial balance">⚙</button>
+        </div>
+      </header>
+
+      <p class="notice" id="notice" role="status" hidden></p>
+
+      <main class="wrap">
+        <section class="section">
+          <div class="sec-head">
+            <span class="toggle"><span class="tri">▾</span></span>
+            <span class="icon">📥</span><h2>Income — this month</h2>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th class="drag-col"></th>
+                <th><span class="hicon">Aa</span>Item</th>
+                <th class="num-col"><span class="hicon">#</span>Amount</th>
+                <th class="date-col"><span class="hicon">📅</span>Date</th>
+                <th><span class="hicon">≡</span>Comment</th>
+                <th class="act"><span class="hicon">＋</span><span class="hicon">···</span></th>
+              </tr>
+            </thead>
+            <tbody id="tb-income"></tbody>
+            <tfoot>
+              <tr>
+                <td></td>
+                <td>SUM</td>
+                <td class="sum" id="sum-income">0 ₫</td>
+                <td colspan="2"></td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </section>
+
+        <section class="section">
+          <div class="sec-head">
+            <span class="toggle"><span class="tri">▾</span></span>
+            <span class="icon">📤</span><h2>Expenses — this month</h2>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th class="drag-col"></th>
+                <th><span class="hicon">Aa</span>Item</th>
+                <th class="num-col"><span class="hicon">#</span>Amount</th>
+                <th class="date-col"><span class="hicon">📅</span>Date</th>
+                <th><span class="hicon">≡</span>Comment</th>
+                <th class="act"><span class="hicon">＋</span><span class="hicon">···</span></th>
+              </tr>
+            </thead>
+            <tbody id="tb-expense"></tbody>
+            <tfoot>
+              <tr>
+                <td></td>
+                <td>SUM</td>
+                <td class="sum" id="sum-expense">0 ₫</td>
+                <td colspan="2"></td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </section>
+
+        <section class="section">
+          <div class="sec-head">
+            <span class="toggle"><span class="tri">▾</span></span>
+            <span class="icon">💰</span><h2>Fixed Income</h2>
+            <span class="tag repeat">repeats every month</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th class="drag-col"></th>
+                <th><span class="hicon">Aa</span>Item</th>
+                <th class="num-col"><span class="hicon">#</span>Amount</th>
+                <th><span class="hicon">≡</span>Comment</th>
+                <th class="act"><span class="hicon">＋</span><span class="hicon">···</span></th>
+              </tr>
+            </thead>
+            <tbody id="tb-fixedinc"></tbody>
+            <tfoot>
+              <tr>
+                <td></td>
+                <td>SUM</td>
+                <td class="sum" id="sum-fixedinc">0 ₫</td>
+                <td></td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </section>
+
+        <section class="section">
+          <div class="sec-head">
+            <span class="toggle"><span class="tri">▾</span></span>
+            <span class="icon">📌</span><h2>Fixed Expenses</h2>
+            <span class="tag repeat">repeats every month</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th class="drag-col"></th>
+                <th><span class="hicon">Aa</span>Item</th>
+                <th class="num-col"><span class="hicon">#</span>Amount</th>
+                <th><span class="hicon">≡</span>Comment</th>
+                <th class="act"><span class="hicon">＋</span><span class="hicon">···</span></th>
+              </tr>
+            </thead>
+            <tbody id="tb-fixedexp"></tbody>
+            <tfoot>
+              <tr>
+                <td></td>
+                <td>SUM</td>
+                <td class="sum" id="sum-fixedexp">0 ₫</td>
+                <td></td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </section>
+
+        <section class="section">
+          <div class="sec-head">
+            <span class="toggle"><span class="tri">▾</span></span>
+            <span class="icon">📝</span><h2>Extra &amp; Notes</h2>
+            <span class="tag">no math unless you want</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th class="drag-col"></th>
+                <th><span class="hicon">Aa</span>Note</th>
+                <th class="date-col"><span class="hicon">📅</span>Date</th>
+                <th><span class="hicon">≡</span>Comment</th>
+                <th class="act"><span class="hicon">＋</span><span class="hicon">···</span></th>
+              </tr>
+            </thead>
+            <tbody id="tb-notes"></tbody>
+          </table>
+        </section>
+      </main>
+
+      <div class="balance-bar">
+        <div class="bal"><span class="blbl">🏦 Initial</span><b id="bal-initial">—</b></div>
+        <div class="bal">
+          <span class="blbl">📥 Income (fixed + this month)</span>
+          <b class="green" id="bal-income">—</b>
+        </div>
+        <div class="bal">
+          <span class="blbl">📤 Expense (fixed + this month)</span>
+          <b class="red" id="bal-expense">—</b>
+        </div>
+        <div class="bal"><span class="blbl">⚖ Ending</span><b class="gold" id="bal-ending">—</b></div>
+      </div>
+    </div>
+
+    <script type="module" src="/js/main.js"></script>
   </body>
 </html>
