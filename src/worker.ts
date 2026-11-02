@@ -2,6 +2,7 @@
 // public entry points. Authenticated routes are dispatched below; anything
 // unrecognised falls through to the JSON 404.
 import { requireAuth } from "./auth";
+import { handleGetMonth } from "./month";
 import { handleInitialBalance, handleMe, handlePasscode } from "./setup";
 import {
   handleCreateTemplate,
@@ -35,6 +36,11 @@ export default {
           return handleListTemplates(env);
         case "POST /api/templates":
           return handleCreateTemplate(request, env);
+      }
+
+      const monthRoute = /^\/api\/month\/([^/]+)$/.exec(pathname);
+      if (monthRoute !== null && request.method === "GET") {
+        return handleGetMonth(env, monthRoute[1]);
       }
 
       const templateRoute = /^\/api\/templates\/(\d+)$/.exec(pathname);
