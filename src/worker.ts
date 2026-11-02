@@ -8,6 +8,11 @@ import {
   handlePatchEntry,
   handleReorderEntries,
 } from "./entries";
+import {
+  handleCreateFixedRow,
+  handleDeleteFixedRow,
+  handlePatchFixedRow,
+} from "./fixed-rows";
 import { handleGetMonth } from "./month";
 import { handleInitialBalance, handleMe, handlePasscode } from "./setup";
 import {
@@ -73,6 +78,20 @@ export default {
 
         if (request.method === "PATCH") return handlePatchTemplate(request, env, id);
         if (request.method === "DELETE") return handleDeleteTemplate(env, id);
+      }
+
+      const fixedRoute = /^\/api\/fixed\/([^/]+)$/.exec(pathname);
+      if (fixedRoute !== null && request.method === "POST") {
+        return handleCreateFixedRow(request, env, fixedRoute[1]);
+      }
+
+      const fixedIdRoute = /^\/api\/fixed\/([^/]+)\/(\d+)$/.exec(pathname);
+      if (fixedIdRoute !== null) {
+        const ym = fixedIdRoute[1];
+        const id = Number(fixedIdRoute[2]);
+
+        if (request.method === "PATCH") return handlePatchFixedRow(request, env, ym, id);
+        if (request.method === "DELETE") return handleDeleteFixedRow(env, ym, id);
       }
 
       return Response.json({ error: "not_found" }, { status: 404 });
