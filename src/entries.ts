@@ -103,12 +103,16 @@ function readAmount(value: unknown): number | null {
 }
 
 /**
- * An omitted date means today (UTC, matching `currentYm`). A supplied date
- * must be a real day inside `ym`; that also rejects impossible days such as
- * `2026-02-31`.
+ * An omitted date means today (UTC, matching `currentYm`), but only when today
+ * falls inside `ym`: an entry must always belong to the sheet it is posted to.
+ * A supplied date must be a real day inside `ym`; that also rejects impossible
+ * days such as `2026-02-31`.
  */
 function readDate(value: unknown, ym: string): string | null {
-  if (value === undefined) return new Date().toISOString().slice(0, 10);
+  if (value === undefined) {
+    const today = new Date().toISOString().slice(0, 10);
+    return dateInYm(today, ym) ? today : null;
+  }
 
   return typeof value === "string" && dateInYm(value, ym) ? value : null;
 }

@@ -185,6 +185,19 @@ describe("POST /api/month/:ym/entry", () => {
     await expect(countEntries()).resolves.toBe(0);
   });
 
+  it("rejects an omitted date when today is not inside the target month", async () => {
+    // A fixed far-future month keeps this independent of when the suite runs.
+    const response = await createEntry("2099-12", {
+      kind: "expense",
+      name: "Groceries",
+      amount: 170,
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "date_out_of_month" });
+    await expect(countEntries()).resolves.toBe(0);
+  });
+
   it("rejects amounts that are not positive whole thousands", async () => {
     for (const amount of [12.5, 0, -1, 1e9, "500", null, undefined]) {
       const response = await createEntry("2026-11", {
