@@ -240,7 +240,7 @@ function renderMonth(view) {
     tbody.replaceChildren();
   }
 
-  renderBalance(view.summary);
+  renderBalance(view.summary, view.initial);
 }
 
 /** Renders one fixed section and returns its total, for the SUM footer. */
@@ -280,8 +280,8 @@ function fixedRow(row, kind) {
   return tr;
 }
 
-function renderBalance(summary) {
-  balInitial.textContent = fmtVND(summary.initial);
+function renderBalance(summary, initial) {
+  balInitial.textContent = fmtVND(initial);
   balIncome.textContent = fmtVND(summary.income);
   balExpense.textContent = summary.expense === 0 ? fmtVND(0) : `−${fmtVND(summary.expense)}`;
   balEnding.textContent = fmtVND(summary.ending);
