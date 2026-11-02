@@ -2,7 +2,12 @@
 // public entry points. Authenticated routes are dispatched below; anything
 // unrecognised falls through to the JSON 404.
 import { requireAuth } from "./auth";
-import { handleCreateEntry } from "./entries";
+import {
+  handleCreateEntry,
+  handleDeleteEntry,
+  handlePatchEntry,
+  handleReorderEntries,
+} from "./entries";
 import { handleGetMonth } from "./month";
 import { handleInitialBalance, handleMe, handlePasscode } from "./setup";
 import {
@@ -47,6 +52,19 @@ export default {
       const entryRoute = /^\/api\/month\/([^/]+)\/entry$/.exec(pathname);
       if (entryRoute !== null && request.method === "POST") {
         return handleCreateEntry(request, env, entryRoute[1]);
+      }
+
+      const reorderRoute = /^\/api\/month\/([^/]+)\/reorder$/.exec(pathname);
+      if (reorderRoute !== null && request.method === "POST") {
+        return handleReorderEntries(request, env, reorderRoute[1]);
+      }
+
+      const entryIdRoute = /^\/api\/entry\/(\d+)$/.exec(pathname);
+      if (entryIdRoute !== null) {
+        const id = Number(entryIdRoute[1]);
+
+        if (request.method === "PATCH") return handlePatchEntry(request, env, id);
+        if (request.method === "DELETE") return handleDeleteEntry(env, id);
       }
 
       const templateRoute = /^\/api\/templates\/(\d+)$/.exec(pathname);
