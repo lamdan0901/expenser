@@ -139,10 +139,16 @@ describe("worker dispatch order", () => {
   });
 
   it("does not gate POST /api/passcode or GET /api/me", async () => {
-    const passcode = await SELF.fetch("https://example.com/api/passcode", { method: "POST" });
+    // 401 now means "wrong passcode" on this route, so prove reachability with
+    // the right one instead of asserting the status is not 401.
+    const passcode = await SELF.fetch("https://example.com/api/passcode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ passcode: TEST_SECRET }),
+    });
     const me = await SELF.fetch("https://example.com/api/me");
 
-    expect(passcode.status).not.toBe(401);
-    expect(me.status).not.toBe(401);
+    expect(passcode.status).toBe(204);
+    expect(me.status).toBe(200);
   });
 });

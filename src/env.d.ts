@@ -4,3 +4,9 @@
 interface Env {
   PASSCODE: string;
 }
+
+declare namespace Cloudflare {
+  interface Env {
+    PASSCODE: string;
+  }
+}
