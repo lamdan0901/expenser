@@ -7,10 +7,11 @@
 // action menus land in `render.js`/`editing.js` (Task 13).
 import { ApiError, getMe, getMonth, setInitialBalance, verifyPasscode } from "./api.js";
 import { renderComposer } from "./composer.js";
-import { initEditing } from "./editing.js";
-import { parseK, todayIso, ymLabel } from "./format.js";
+import { initEditing, parseInitialK } from "./editing.js";
+import { todayIso, ymLabel } from "./format.js";
 import {
   addEntry,
+  addFixedRow,
   forgetRow,
   getInitial,
   markRowDeleting,
@@ -54,6 +55,7 @@ const composer = renderComposer({
 const editing = initEditing({
   getInitial,
   onEntryCreated: addEntry,
+  onFixedCreated: addFixedRow,
   onRowPatched: patchRowModel,
   onRowDeleting: markRowDeleting,
   onRowRestored: restoreRow,
@@ -138,9 +140,10 @@ gateForm.addEventListener("submit", async (event) => {
 setupForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
-  const value = parseK(initialInput.value);
+  // Shares the ⚙ dialog's validator: an opening balance of 0 is valid.
+  const value = parseInitialK(initialInput.value);
   if (value === null) {
-    setupError.textContent = "Enter a whole number of thousands, above 0.";
+    setupError.textContent = "Enter a whole number of thousands, zero or above.";
     initialInput.select();
     return;
   }

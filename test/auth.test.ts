@@ -75,11 +75,12 @@ describe("passcode check", () => {
 });
 
 describe("auth cookie", () => {
-  it("is HttpOnly, SameSite=Lax and lasts one year", () => {
+  it("is HttpOnly, Secure, SameSite=Lax and lasts one year", () => {
     const header = authCookieHeader("owner.123.signature");
 
     expect(header).toContain(`${AUTH_COOKIE}=owner.123.signature`);
     expect(header).toContain("HttpOnly");
+    expect(header).toContain("Secure");
     expect(header).toContain("SameSite=Lax");
     expect(header).toContain(`Max-Age=${AUTH_MAX_AGE_SECONDS}`);
     expect(AUTH_MAX_AGE_SECONDS).toBe(60 * 60 * 24 * 365);

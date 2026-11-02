@@ -85,6 +85,29 @@ export function addEntry(entry, ym) {
   flash(row);
 }
 
+/**
+ * Prepends an already-saved fixed row to its section and updates the SUM footer
+ * and balance bar locally. `ym` guards against painting a response for a month
+ * the user has already navigated away from.
+ */
+export function addFixedRow(row, ym) {
+  if (sheet === null) return;
+  if (ym !== undefined && sheet.ym !== ym) return;
+
+  const tbody = sectionFor(row.kind);
+  if (tbody === null) return;
+
+  const tr = fixedRow(row, row.kind, sheet.ym);
+  tbody.prepend(tr);
+
+  const section = tbody.closest(".section");
+  if (section !== null) section.classList.remove("collapsed");
+
+  sheet.fixed = [row, ...sheet.fixed];
+  paintTotals();
+  flash(tr);
+}
+
 /** Merges an inline edit into the model and repaints every total. */
 export function patchRowModel(ym, kind, id, fields) {
   if (sheet === null || sheet.ym !== ym) return;
@@ -336,6 +359,8 @@ function isFixedKind(kind) {
 function sectionFor(kind) {
   if (kind === "income") return tbIncome;
   if (kind === "expense") return tbExpense;
+  if (kind === "fixed_income") return tbFixedIncome;
+  if (kind === "fixed_expense") return tbFixedExpense;
   if (kind === "note") return tbNotes;
   return null;
 }

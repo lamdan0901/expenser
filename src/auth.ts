@@ -98,6 +98,7 @@ export function authCookieHeader(token: string): string {
   return [
     `${AUTH_COOKIE}=${token}`,
     "HttpOnly",
+    "Secure",
     "SameSite=Lax",
     "Path=/",
     `Max-Age=${AUTH_MAX_AGE_SECONDS}`,

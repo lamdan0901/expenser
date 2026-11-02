@@ -15,7 +15,7 @@ Version: 640e4db5-934f-4b80-8127-1ee1ee17d55b · migration 0001_init.sql applied
 
 - `GET /api/me` (no cookie) → `200 {"verified":false}` ✅
 - `POST /api/passcode` wrong passcode → `401`, no cookie set ✅
-- `POST /api/month/2026-11/entry` without cookie → `401`, empty body ✅
+- `POST /api/month/2026-11/entry` without cookie → `401 {"error":"unauthorized"}` ✅
 
 ## Manual browser pass (deferred from Tasks 11–13; subjective feel)
 

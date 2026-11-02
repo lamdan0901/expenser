@@ -9,6 +9,7 @@
 import {
   ApiError,
   createEntry,
+  createFixedRow,
   deleteEntry,
   deleteFixedRow,
   deleteTemplate,
@@ -519,7 +520,7 @@ function addDraft(kind) {
     return;
   }
 
-  const date = defaultDate(activeYm);
+  const date = isFixedKind(kind) ? null : defaultDate(activeYm);
   const row = draftRow(kind, date);
   tbody.prepend(row);
 
@@ -554,7 +555,7 @@ function draftRow(kind, date) {
 
   if (kind !== "note") {
     const amountCell = el("td");
-    const debit = kind === "expense";
+    const debit = kind === "expense" || kind === "fixed_expense";
     const amount = el("span", `amount ${debit ? "debit" : "credit"}`);
     if (debit) amount.append("−");
     amount.append(editable("amount", "Amount (k ₫)"));
@@ -562,7 +563,8 @@ function draftRow(kind, date) {
     row.append(amountCell);
   }
 
-  row.append(el("td", "date", prettyDate(date)));
+  // Fixed sections have no date column; their rows repeat every month.
+  if (!isFixedKind(kind)) row.append(el("td", "date", prettyDate(date)));
 
   const commentCell = el("td");
   const comment = el("span", "comment");
@@ -663,22 +665,40 @@ async function saveDraft(row, focusAmount = false) {
   row.classList.add("row-busy");
 
   try {
-    const saved = await createEntry(item.ym, {
-      kind: item.kind,
-      name: item.name,
-      amount: item.kind === "note" ? undefined : item.amount / 1000,
-      date: item.date,
-      comment: item.comment,
-    });
+    // Fixed rows go through the fixed-row endpoint: in the current or a future
+    // month the backend also creates the backing template, so the row repeats.
+    const fixed = isFixedKind(item.kind);
+    const saved = fixed
+      ? await createFixedRow(item.ym, {
+          kind: item.kind,
+          name: item.name,
+          amount: item.amount / 1000,
+          comment: item.comment,
+        })
+      : await createEntry(item.ym, {
+          kind: item.kind,
+          name: item.name,
+          amount: item.kind === "note" ? undefined : item.amount / 1000,
+          date: item.date,
+          comment: item.comment,
+        });
 
-    const created = {
-      id: saved.id,
-      kind: item.kind,
-      name: item.name,
-      amount: item.amount,
-      date: item.date,
-      comment: item.comment,
-    };
+    const created = fixed
+      ? {
+          id: saved.id,
+          kind: item.kind,
+          name: item.name,
+          amount: item.amount,
+          comment: item.comment,
+        }
+      : {
+          id: saved.id,
+          kind: item.kind,
+          name: item.name,
+          amount: item.amount,
+          date: item.date,
+          comment: item.comment,
+        };
 
     // The row can be discarded while the POST is in flight (the ✕ handler runs
     // after the blur that started this save, or Enter produced a slow request).
@@ -686,17 +706,20 @@ async function saveDraft(row, focusAmount = false) {
     // next reload.
     if (draftState.get(row) !== state || !row.isConnected) {
       try {
-        await deleteEntry(saved.id);
+        if (fixed) await deleteFixedRow(item.ym, saved.id);
+        else await deleteEntry(saved.id);
       } catch {
         config.onNotice("Could not discard the new row. Try again.");
-        config.onEntryCreated(created, item.ym);
+        if (fixed) config.onFixedCreated(created, item.ym);
+        else config.onEntryCreated(created, item.ym);
       }
       return;
     }
 
     draftState.delete(row);
     row.remove();
-    config.onEntryCreated(created, item.ym);
+    if (fixed) config.onFixedCreated(created, item.ym);
+    else config.onEntryCreated(created, item.ym);
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
       config.onSessionExpired();
@@ -790,7 +813,7 @@ async function saveSettings(event) {
 }
 
 /** The opening balance follows the setup card's k input, but 0 is allowed. */
-function parseInitialK(text) {
+export function parseInitialK(text) {
   const cleaned = String(text).trim();
   if (!/^\d+$/.test(cleaned)) return null;
 
