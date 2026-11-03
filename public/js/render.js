@@ -78,7 +78,10 @@ export function addEntry(entry, ym) {
   tbody.prepend(row);
 
   const section = tbody.closest(".section");
-  if (section !== null) section.classList.remove("collapsed");
+  if (section !== null) {
+    section.classList.remove("collapsed");
+    section.querySelector(".sec-head").setAttribute("aria-expanded", "true");
+  }
 
   sheet.entries = [entry, ...sheet.entries];
   paintTotals();
@@ -101,7 +104,10 @@ export function addFixedRow(row, ym) {
   tbody.prepend(tr);
 
   const section = tbody.closest(".section");
-  if (section !== null) section.classList.remove("collapsed");
+  if (section !== null) {
+    section.classList.remove("collapsed");
+    section.querySelector(".sec-head").setAttribute("aria-expanded", "true");
+  }
 
   sheet.fixed = [row, ...sheet.fixed];
   paintTotals();
@@ -279,11 +285,15 @@ function amountCell(amount, kind) {
 function actionCell() {
   const td = el("td", "row-act");
 
-  const edit = el("span", "row-edit", "⚙");
+  const edit = el("button", "row-edit", "⚙");
+  edit.type = "button";
+  edit.setAttribute("aria-label", "Edit item");
   edit.dataset.action = "edit";
   edit.title = "Edit item";
 
-  const menu = el("span", "row-more", "⋮");
+  const menu = el("button", "row-more", "⋮");
+  menu.type = "button";
+  menu.setAttribute("aria-label", "Row actions");
   menu.dataset.action = "menu";
   menu.title = "Row actions";
 
@@ -315,6 +325,10 @@ function paintTotals() {
   sumExpense.textContent = expenseSum(sumAmounts(expenseEntries));
   sumFixedIncome.textContent = fmtVND(sumAmounts(fixedIncome));
   sumFixedExpense.textContent = expenseSum(sumAmounts(fixedExpense));
+
+  for (const sum of [sumIncome, sumExpense, sumFixedIncome, sumFixedExpense]) {
+    byId(sum.id.replace("sum-", "total-")).textContent = sum.textContent;
+  }
 
   const summary = {
     income: incomeTotal,

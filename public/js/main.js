@@ -177,7 +177,14 @@ function startApp() {
 
     for (const head of document.querySelectorAll(".sec-head")) {
       head.addEventListener("click", () => {
-        head.closest(".section").classList.toggle("collapsed");
+        const collapsed = head.closest(".section").classList.toggle("collapsed");
+        head.setAttribute("aria-expanded", String(!collapsed));
+      });
+      head.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          head.click();
+        }
       });
     }
   }

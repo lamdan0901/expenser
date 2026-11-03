@@ -40,17 +40,12 @@
 
     <div id="app" hidden>
       <header>
-        <div class="brand"><div class="dot">💸</div>Expenser</div>
-        <div class="month-nav">
-          <button id="prev-month" type="button" aria-label="Previous month">◀</button>
+        <nav class="month-nav" aria-label="Month navigation">
+          <button id="prev-month" type="button" aria-label="Previous month"><svg class="glyph chevron-left" aria-hidden="true"><use href="/icons.svg#chevron" /></svg></button>
+          <button id="today" type="button" aria-label="Go to current month" title="Go to current month"><svg class="glyph" aria-hidden="true"><use href="/icons.svg#calendar" /></svg></button>
           <span class="cur" id="month-label">—</span>
-          <button id="next-month" type="button" aria-label="Next month">▶</button>
-        </div>
-        <div class="bar-actions">
-          <button class="chip" id="today" type="button">• Today</button>
-          <a class="chip" id="export" href="#" download title="Download this month as CSV">⬇ Export</a>
-          <button class="chip" id="settings" type="button" title="Initial balance">⚙</button>
-        </div>
+          <button id="next-month" type="button" aria-label="Next month"><svg class="glyph" aria-hidden="true"><use href="/icons.svg#chevron" /></svg></button>
+        </nav>
       </header>
 
       <p class="notice" id="notice" role="status" hidden></p>
@@ -59,8 +54,8 @@
       <div class="composer-wrap">
         <form class="composer" id="composer" novalidate>
           <div class="seg" id="seg">
-            <button class="on exp" type="button" data-kind="expense">📤 Expense</button>
-            <button type="button" data-kind="income">📥 Income</button>
+            <button class="on exp" type="button" data-kind="expense"><svg class="glyph" aria-hidden="true"><use href="/icons.svg#expense" /></svg>Expense</button>
+            <button type="button" data-kind="income"><svg class="glyph" aria-hidden="true"><use href="/icons.svg#income" /></svg>Income</button>
           </div>
           <input id="f-name" placeholder="What was it?" autocomplete="off" aria-label="Item name" />
           <input
@@ -73,172 +68,179 @@
           />
           <input id="f-note" placeholder="Comment (optional)" autocomplete="off" aria-label="Comment" />
           <label class="dater" id="f-dwrap" title="Date — defaults to today">
-            📅<span id="f-dlbl">Today</span>
+            <svg class="glyph" aria-hidden="true"><use href="/icons.svg#calendar" /></svg><span id="f-dlbl">Today</span>
             <input type="date" id="f-date" aria-label="Entry date" />
           </label>
           <button class="go" id="f-go" type="submit">Log it ↵</button>
         </form>
         <p class="composer-error" id="f-error" role="alert" hidden></p>
         <div class="hint">
-          <kbd>Esc</kbd> direction · <kbd>↵</kbd> saves to the top · date defaults to
-          <b>today</b> — pick 📅 for another day
+          <span><kbd>Esc</kbd> switch direction</span><span><kbd>Tab</kbd> navigate</span>
+          <span><kbd>↵</kbd> log entry</span><span><kbd>N</kbd> new entry</span><span>Click date to change day</span>
         </div>
       </div>
 
       <main class="wrap">
-        <section class="section">
-          <div class="sec-head">
-            <span class="toggle"><span class="tri">▾</span></span>
-            <span class="icon">📥</span><h2>Income — this month</h2>
+        <section class="section income-section collapsed">
+          <div class="sec-head" role="button" tabindex="0" aria-expanded="false" aria-controls="income-table">
+            <span class="toggle"><svg class="glyph tri" aria-hidden="true"><use href="/icons.svg#chevron" /></svg></span>
+            <span class="icon"><svg class="glyph" aria-hidden="true"><use href="/icons.svg#income" /></svg></span><h2>Income</h2>
+            <span class="section-total green" id="total-income">0 ₫</span>
           </div>
-          <table>
-            <thead>
-              <tr>
-                <th class="drag-col"></th>
-                <th><span class="hicon">Aa</span>Item</th>
-                <th class="num-col"><span class="hicon">#</span>Amount</th>
-                <th class="date-col"><span class="hicon">📅</span>Date</th>
-                <th><span class="hicon">≡</span>Comment</th>
-                <th class="act"><span class="hicon">＋</span><span class="hicon">···</span></th>
-              </tr>
-            </thead>
-            <tbody id="tb-income"></tbody>
-            <tfoot>
-              <tr>
-                <td></td>
-                <td>SUM</td>
-                <td class="sum" id="sum-income">0 ₫</td>
-                <td colspan="2"></td>
-                <td></td>
-              </tr>
-            </tfoot>
-          </table>
-          <div class="add-row" data-add="income"><span>＋</span> New page</div>
+          <div class="table-scroll">
+            <table id="income-table" aria-label="Income">
+              <thead>
+                <tr>
+                  <th class="drag-col"></th>
+                  <th><svg class="glyph hicon" aria-hidden="true"><use href="/icons.svg#note" /></svg>Item</th>
+                  <th class="num-col"><span class="hicon">#</span>Amount</th>
+                  <th class="date-col"><svg class="glyph hicon" aria-hidden="true"><use href="/icons.svg#calendar" /></svg>Date</th>
+                  <th><span class="hicon">≡</span>Comment</th>
+                  <th class="act"><button class="table-add" type="button" data-add="income" aria-label="Add income" title="Add income">＋</button><span class="hicon" aria-hidden="true">···</span></th>
+                </tr>
+              </thead>
+              <tbody id="tb-income"></tbody>
+              <tfoot>
+                <tr>
+                  <td></td>
+                  <td>SUM</td>
+                  <td class="sum" id="sum-income">0 ₫</td>
+                  <td colspan="2"></td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         </section>
 
-        <section class="section">
-          <div class="sec-head">
-            <span class="toggle"><span class="tri">▾</span></span>
-            <span class="icon">📤</span><h2>Expenses — this month</h2>
+        <section class="section expense-section">
+          <div class="sec-head" role="button" tabindex="0" aria-expanded="true" aria-controls="expense-table">
+            <span class="toggle"><svg class="glyph tri" aria-hidden="true"><use href="/icons.svg#chevron" /></svg></span>
+            <span class="icon"><svg class="glyph" aria-hidden="true"><use href="/icons.svg#expense" /></svg></span><h2>Expenses</h2>
+            <span class="section-total red" id="total-expense">0 ₫</span>
           </div>
-          <table>
-            <thead>
-              <tr>
-                <th class="drag-col"></th>
-                <th><span class="hicon">Aa</span>Item</th>
-                <th class="num-col"><span class="hicon">#</span>Amount</th>
-                <th class="date-col"><span class="hicon">📅</span>Date</th>
-                <th><span class="hicon">≡</span>Comment</th>
-                <th class="act"><span class="hicon">＋</span><span class="hicon">···</span></th>
-              </tr>
-            </thead>
-            <tbody id="tb-expense"></tbody>
-            <tfoot>
-              <tr>
-                <td></td>
-                <td>SUM</td>
-                <td class="sum" id="sum-expense">0 ₫</td>
-                <td colspan="2"></td>
-                <td></td>
-              </tr>
-            </tfoot>
-          </table>
-          <div class="add-row" data-add="expense"><span>＋</span> New page</div>
+          <div class="table-scroll">
+            <table id="expense-table" aria-label="Expenses">
+              <thead>
+                <tr>
+                  <th class="drag-col"></th>
+                  <th><svg class="glyph hicon" aria-hidden="true"><use href="/icons.svg#note" /></svg>Item</th>
+                  <th class="num-col"><span class="hicon">#</span>Amount</th>
+                  <th class="date-col"><svg class="glyph hicon" aria-hidden="true"><use href="/icons.svg#calendar" /></svg>Date</th>
+                  <th><span class="hicon">≡</span>Comment</th>
+                  <th class="act"><button class="table-add" type="button" data-add="expense" aria-label="Add expense" title="Add expense">＋</button><span class="hicon" aria-hidden="true">···</span></th>
+                </tr>
+              </thead>
+              <tbody id="tb-expense"></tbody>
+              <tfoot>
+                <tr>
+                  <td></td>
+                  <td>SUM</td>
+                  <td class="sum" id="sum-expense">0 ₫</td>
+                  <td colspan="2"></td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         </section>
 
-        <section class="section">
-          <div class="sec-head">
-            <span class="toggle"><span class="tri">▾</span></span>
-            <span class="icon">💰</span><h2>Fixed Income</h2>
-            <span class="tag repeat">repeats every month</span>
+        <section class="section income-section fixed-section">
+          <div class="sec-head" role="button" tabindex="0" aria-expanded="true" aria-controls="fixed-income-table">
+            <span class="toggle"><svg class="glyph tri" aria-hidden="true"><use href="/icons.svg#chevron" /></svg></span>
+            <span class="icon"><svg class="glyph" aria-hidden="true"><use href="/icons.svg#layers" /></svg></span><h2>Fixed Income</h2>
+            <span class="section-total green" id="total-fixedinc">0 ₫</span>
           </div>
-          <table>
-            <thead>
-              <tr>
-                <th class="drag-col"></th>
-                <th><span class="hicon">Aa</span>Item</th>
-                <th class="num-col"><span class="hicon">#</span>Amount</th>
-                <th><span class="hicon">≡</span>Comment</th>
-                <th class="act"><span class="hicon">＋</span><span class="hicon">···</span></th>
-              </tr>
-            </thead>
-            <tbody id="tb-fixedinc"></tbody>
-            <tfoot>
-              <tr>
-                <td></td>
-                <td>SUM</td>
-                <td class="sum" id="sum-fixedinc">0 ₫</td>
-                <td></td>
-                <td></td>
-              </tr>
-            </tfoot>
-          </table>
-          <div class="add-row" data-add="fixed_income"><span>＋</span> New page</div>
+          <div class="table-scroll">
+            <table id="fixed-income-table" aria-label="Fixed income">
+              <thead>
+                <tr>
+                  <th class="drag-col"></th>
+                  <th><svg class="glyph hicon" aria-hidden="true"><use href="/icons.svg#note" /></svg>Item</th>
+                  <th class="num-col"><span class="hicon">#</span>Amount</th>
+                  <th><span class="hicon">≡</span>Comment</th>
+                  <th class="act"><button class="table-add" type="button" data-add="fixed_income" aria-label="Add fixed income" title="Add fixed income">＋</button><span class="hicon" aria-hidden="true">···</span></th>
+                </tr>
+              </thead>
+              <tbody id="tb-fixedinc"></tbody>
+              <tfoot>
+                <tr>
+                  <td></td>
+                  <td>SUM</td>
+                  <td class="sum" id="sum-fixedinc">0 ₫</td>
+                  <td></td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         </section>
 
-        <section class="section">
-          <div class="sec-head">
-            <span class="toggle"><span class="tri">▾</span></span>
-            <span class="icon">📌</span><h2>Fixed Expenses</h2>
-            <span class="tag repeat">repeats every month</span>
+        <section class="section expense-section fixed-section">
+          <div class="sec-head" role="button" tabindex="0" aria-expanded="true" aria-controls="fixed-expense-table">
+            <span class="toggle"><svg class="glyph tri" aria-hidden="true"><use href="/icons.svg#chevron" /></svg></span>
+            <span class="icon"><svg class="glyph" aria-hidden="true"><use href="/icons.svg#layers" /></svg></span><h2>Fixed Expenses</h2>
+            <span class="section-total red" id="total-fixedexp">0 ₫</span>
           </div>
-          <table>
-            <thead>
-              <tr>
-                <th class="drag-col"></th>
-                <th><span class="hicon">Aa</span>Item</th>
-                <th class="num-col"><span class="hicon">#</span>Amount</th>
-                <th><span class="hicon">≡</span>Comment</th>
-                <th class="act"><span class="hicon">＋</span><span class="hicon">···</span></th>
-              </tr>
-            </thead>
-            <tbody id="tb-fixedexp"></tbody>
-            <tfoot>
-              <tr>
-                <td></td>
-                <td>SUM</td>
-                <td class="sum" id="sum-fixedexp">0 ₫</td>
-                <td></td>
-                <td></td>
-              </tr>
-            </tfoot>
-          </table>
-          <div class="add-row" data-add="fixed_expense"><span>＋</span> New page</div>
+          <div class="table-scroll">
+            <table id="fixed-expense-table" aria-label="Fixed expenses">
+              <thead>
+                <tr>
+                  <th class="drag-col"></th>
+                  <th><svg class="glyph hicon" aria-hidden="true"><use href="/icons.svg#note" /></svg>Item</th>
+                  <th class="num-col"><span class="hicon">#</span>Amount</th>
+                  <th><span class="hicon">≡</span>Comment</th>
+                  <th class="act"><button class="table-add" type="button" data-add="fixed_expense" aria-label="Add fixed expense" title="Add fixed expense">＋</button><span class="hicon" aria-hidden="true">···</span></th>
+                </tr>
+              </thead>
+              <tbody id="tb-fixedexp"></tbody>
+              <tfoot>
+                <tr>
+                  <td></td>
+                  <td>SUM</td>
+                  <td class="sum" id="sum-fixedexp">0 ₫</td>
+                  <td></td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         </section>
 
-        <section class="section">
-          <div class="sec-head">
-            <span class="toggle"><span class="tri">▾</span></span>
-            <span class="icon">📝</span><h2>Extra &amp; Notes</h2>
-            <span class="tag">no math unless you want</span>
+        <section class="section notes-section">
+          <div class="sec-head" role="button" tabindex="0" aria-expanded="true" aria-controls="notes-table">
+            <span class="toggle"><svg class="glyph tri" aria-hidden="true"><use href="/icons.svg#chevron" /></svg></span>
+            <span class="icon"><svg class="glyph" aria-hidden="true"><use href="/icons.svg#note" /></svg></span><h2>Extra &amp; Notes</h2>
           </div>
-          <table>
-            <thead>
-              <tr>
-                <th class="drag-col"></th>
-                <th><span class="hicon">Aa</span>Note</th>
-                <th class="date-col"><span class="hicon">📅</span>Date</th>
-                <th><span class="hicon">≡</span>Comment</th>
-                <th class="act"><span class="hicon">＋</span><span class="hicon">···</span></th>
-              </tr>
-            </thead>
-            <tbody id="tb-notes"></tbody>
-          </table>
-          <div class="add-row" data-add="note"><span>＋</span> New note</div>
+          <div class="table-scroll">
+            <table id="notes-table" aria-label="Extra and notes">
+              <thead>
+                <tr>
+                  <th class="drag-col"></th>
+                  <th><span class="hicon">Aa</span>Note</th>
+                  <th class="date-col"><svg class="glyph hicon" aria-hidden="true"><use href="/icons.svg#calendar" /></svg>Date</th>
+                  <th><span class="hicon">≡</span>Comment</th>
+                  <th class="act"><button class="table-add" type="button" data-add="note" aria-label="Add note" title="Add note">＋</button><span class="hicon" aria-hidden="true">···</span></th>
+                </tr>
+              </thead>
+              <tbody id="tb-notes"></tbody>
+            </table>
+          </div>
         </section>
+        <div class="sheet-tools"><a class="chip" id="export" href="#" download title="Download month as CSV">↓ Export month</a></div>
       </main>
 
-      <div class="balance-bar">
-        <div class="bal"><span class="blbl">🏦 Initial</span><b id="bal-initial">—</b></div>
-        <div class="bal">
-          <span class="blbl">📥 Income (fixed + this month)</span>
+      <div class="balance-bar" role="region" aria-label="Month balance summary">
+        <button class="bal" id="settings" type="button" title="Edit initial balance" aria-label="Initial balance"><span class="balance-icon"><svg class="glyph" aria-hidden="true"><use href="/icons.svg#coins" /></svg></span><b id="bal-initial">—</b></button>
+        <div class="bal" title="Income" aria-label="Income">
+          <span class="balance-icon green"><svg class="glyph" aria-hidden="true"><use href="/icons.svg#arrow-up" /></svg></span>
           <b class="green" id="bal-income">—</b>
         </div>
-        <div class="bal">
-          <span class="blbl">📤 Expense (fixed + this month)</span>
+        <div class="bal" title="Expense" aria-label="Expense">
+          <span class="balance-icon red"><svg class="glyph" aria-hidden="true"><use href="/icons.svg#arrow-down" /></svg></span>
           <b class="red" id="bal-expense">—</b>
         </div>
-        <div class="bal"><span class="blbl">⚖ Ending</span><b class="gold" id="bal-ending">—</b></div>
+        <div class="bal" title="Ending balance" aria-label="Ending balance"><span class="balance-icon gold"><svg class="glyph" aria-hidden="true"><use href="/icons.svg#flag" /></svg></span><b class="gold" id="bal-ending">—</b></div>
       </div>
     </div>
 

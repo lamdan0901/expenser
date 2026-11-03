@@ -525,7 +525,10 @@ function addDraft(kind) {
   tbody.prepend(row);
 
   const section = tbody.closest(".section");
-  if (section !== null) section.classList.remove("collapsed");
+  if (section !== null) {
+    section.classList.remove("collapsed");
+    section.querySelector(".sec-head").setAttribute("aria-expanded", "true");
+  }
 
   draftState.set(row, {
     saving: false,

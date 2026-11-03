@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+  <symbol id="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18"/></symbol>
+  <symbol id="income" viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="14" rx="2"/><path d="M9 7V3h6v4m-3 5V7m-3 3 3-3 3 3"/></symbol>
+  <symbol id="expense" viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="14" rx="2"/><path d="M9 7V3h6v4m-3 1v6m-3-3 3 3 3-3"/></symbol>
+  <symbol id="layers" viewBox="0 0 24 24"><path d="m12 3 10 5-10 5L2 8l10-5Zm-10 9 10 5 10-5M2 16l10 5 10-5"/></symbol>
+  <symbol id="note" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8m-8 4h5m-5 4h8"/></symbol>
+  <symbol id="coins" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v5c0 4 18 4 18 0V5M3 10v5c0 4 18 4 18 0v-5M3 15v4c0 4 18 4 18 0v-4"/></symbol>
+  <symbol id="arrow-up" viewBox="0 0 24 24"><path d="M6 18 18 6M7 6h11v11"/></symbol>
+  <symbol id="arrow-down" viewBox="0 0 24 24"><path d="m6 6 12 12M7 18h11V7"/></symbol>
+  <symbol id="flag" viewBox="0 0 24 24"><path d="M4 22V3c6-4 10 4 16 0v13c-6 4-10-4-16 0m5-12v11m6-9v11M4 9c6-4 10 4 16 0"/></symbol>
+</svg>
