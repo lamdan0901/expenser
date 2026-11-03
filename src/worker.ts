@@ -3,6 +3,13 @@
 // unrecognised falls through to the JSON 404.
 import { requireAuth } from "./auth";
 import {
+  handleCreateDebtEntry,
+  handleDeleteDebtEntry,
+  handleInitialDebt,
+  handlePatchDebtEntry,
+  handleReorderDebtEntries,
+} from "./debt";
+import {
   handleCreateEntry,
   handleDeleteEntry,
   handlePatchEntry,
@@ -15,7 +22,13 @@ import {
   handleReorderFixedRows,
 } from "./fixed-rows";
 import { handleGetMonth } from "./month";
-import { handleInitialBalance, handleMe, handlePasscode } from "./setup";
+import {
+  handleGetCollapsed,
+  handleInitialBalance,
+  handleMe,
+  handlePasscode,
+  handleSetCollapsed,
+} from "./setup";
 import { handleExportMonth, handleGetSummary } from "./summary";
 import {
   handleCreateTemplate,
@@ -45,6 +58,16 @@ export default {
           return handleMe(request, env);
         case "PUT /api/settings/initial":
           return handleInitialBalance(request, env);
+        case "PUT /api/settings/initial-debt":
+          return handleInitialDebt(request, env);
+        case "GET /api/settings/collapsed":
+        case "GET /api/settings/collapsed-sections":
+          return handleGetCollapsed(env);
+        case "PUT /api/settings/collapsed":
+        case "PUT /api/settings/collapsed-sections":
+        case "PATCH /api/settings/collapsed":
+        case "PATCH /api/settings/collapsed-sections":
+          return handleSetCollapsed(request, env);
         case "GET /api/templates":
           return handleListTemplates(env);
         case "POST /api/templates":
@@ -69,6 +92,24 @@ export default {
       const entryRoute = /^\/api\/month\/([^/]+)\/entry$/.exec(pathname);
       if (entryRoute !== null && request.method === "POST") {
         return handleCreateEntry(request, env, entryRoute[1]);
+      }
+
+      const debtRoute = /^\/api\/month\/([^/]+)\/debt$/.exec(pathname);
+      if (debtRoute !== null && request.method === "POST") {
+        return handleCreateDebtEntry(request, env, debtRoute[1]);
+      }
+
+      const debtReorderRoute = /^\/api\/month\/([^/]+)\/debt\/reorder$/.exec(pathname);
+      if (debtReorderRoute !== null && request.method === "POST") {
+        return handleReorderDebtEntries(request, env, debtReorderRoute[1]);
+      }
+
+      const debtIdRoute = /^\/api\/debt\/(\d+)$/.exec(pathname);
+      if (debtIdRoute !== null) {
+        const id = Number(debtIdRoute[1]);
+
+        if (request.method === "PATCH") return handlePatchDebtEntry(request, env, id);
+        if (request.method === "DELETE") return handleDeleteDebtEntry(env, id);
       }
 
       const reorderRoute = /^\/api\/month\/([^/]+)\/reorder$/.exec(pathname);

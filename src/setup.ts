@@ -15,6 +15,19 @@ const OWNER_ID = "owner";
 
 export const SETUP_DONE_KEY = "setup_done";
 export const INITIAL_BALANCE_KEY = "initial_balance";
+export const COLLAPSED_SECTIONS_KEY = "collapsed_sections";
+
+export const VALID_SECTIONS = [
+  "income",
+  "expense",
+  "fixed_income",
+  "fixed_expense",
+  "debt",
+  "notes",
+] as const;
+
+export type SectionName = (typeof VALID_SECTIONS)[number];
+export const DEFAULT_COLLAPSED: SectionName[] = ["income"];
 
 export const MAX_PASSCODE_FAILURES = 10;
 export const PASSCODE_LOCKOUT_MS = 10 * 60 * 1000;
@@ -98,6 +111,81 @@ export async function handleInitialBalance(request: Request, env: Env): Promise<
     .run();
 
   return new Response(null, { status: 204 });
+}
+
+export function parseCollapsedSections(raw: string | undefined): SectionName[] {
+  if (!raw) return [...DEFAULT_COLLAPSED];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [...DEFAULT_COLLAPSED];
+    const valid = new Set<string>(VALID_SECTIONS);
+    const result: SectionName[] = [];
+    for (const item of parsed) {
+      const norm = item === "note" ? "notes" : item;
+      if (valid.has(norm) && !result.includes(norm as SectionName)) {
+        result.push(norm as SectionName);
+      }
+    }
+    return result;
+  } catch {
+    return [...DEFAULT_COLLAPSED];
+  }
+}
+
+/** `GET /api/settings/collapsed` — returns `{ collapsed: SectionName[] }`. */
+export async function handleGetCollapsed(env: Env): Promise<Response> {
+  const settings = await openSettings(env);
+  const collapsed = parseCollapsedSections(settings[COLLAPSED_SECTIONS_KEY]);
+  return Response.json({ collapsed });
+}
+
+/** `PUT /api/settings/collapsed` — updates collapsed sections. */
+export async function handleSetCollapsed(request: Request, env: Env): Promise<Response> {
+  const body = await readJsonObject(request);
+  if (body === null) {
+    return Response.json({ error: "invalid_body" }, { status: 400 });
+  }
+
+  const settings = await openSettings(env);
+  let currentCollapsed = parseCollapsedSections(settings[COLLAPSED_SECTIONS_KEY]);
+
+  if ("collapsed" in body && Array.isArray(body.collapsed)) {
+    const valid = new Set<string>(VALID_SECTIONS);
+    const updated: SectionName[] = [];
+    for (const item of body.collapsed) {
+      const norm = item === "note" ? "notes" : item;
+      if (typeof norm !== "string" || !valid.has(norm)) {
+        return Response.json({ error: "invalid_section" }, { status: 400 });
+      }
+      if (!updated.includes(norm as SectionName)) {
+        updated.push(norm as SectionName);
+      }
+    }
+    currentCollapsed = updated;
+  } else if ("section" in body && typeof body.section === "string" && typeof body.collapsed === "boolean") {
+    const norm = body.section === "note" ? "notes" : body.section;
+    if (!VALID_SECTIONS.includes(norm as SectionName)) {
+      return Response.json({ error: "invalid_section" }, { status: 400 });
+    }
+    const sec = norm as SectionName;
+    if (body.collapsed) {
+      if (!currentCollapsed.includes(sec)) {
+        currentCollapsed.push(sec);
+      }
+    } else {
+      currentCollapsed = currentCollapsed.filter((s) => s !== sec);
+    }
+  } else {
+    return Response.json({ error: "invalid_payload" }, { status: 400 });
+  }
+
+  await env.DB.prepare(
+    "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+  )
+    .bind(COLLAPSED_SECTIONS_KEY, JSON.stringify(currentCollapsed))
+    .run();
+
+  return Response.json({ collapsed: currentCollapsed });
 }
 
 interface AttemptRecord {

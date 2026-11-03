@@ -4,7 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --remote",
+    "dev:local": "wrangler dev",
+    "migrate:local": "wrangler d1 migrations apply expenser --local",
+    "migrate:remote": "wrangler d1 migrations apply expenser --remote",
     "test": "vitest run",
     "deploy": "wrangler deploy"
   },

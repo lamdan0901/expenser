@@ -10,23 +10,43 @@
 // This module owns the sheet model and the totals, so edits/deletes only need to
 // tell it which row changed; `paintTotals` then recomputes every displayed sum.
 import { fmtVND, prettyDate } from "./format.js";
-import { wireRow } from "./editing.js";
+import { createDateCell, wireRow } from "./editing.js";
+import { setCollapsedSections } from "./api.js";
 
 const tbIncome = byId("tb-income");
 const tbExpense = byId("tb-expense");
 const tbFixedIncome = byId("tb-fixedinc");
 const tbFixedExpense = byId("tb-fixedexp");
+const tbDebt = byId("tb-debt");
 const tbNotes = byId("tb-notes");
 
-const sumIncome = byId("sum-income");
-const sumExpense = byId("sum-expense");
-const sumFixedIncome = byId("sum-fixedinc");
-const sumFixedExpense = byId("sum-fixedexp");
+const totalIncome = byId("total-income");
+const totalExpense = byId("total-expense");
+const totalFixedIncome = byId("total-fixedinc");
+const totalFixedExpense = byId("total-fixedexp");
+
+const debtInitial = byId("debt-initial");
+const debtRemaining = byId("debt-remaining");
 
 const balInitial = byId("bal-initial");
 const balIncome = byId("bal-income");
 const balExpense = byId("bal-expense");
 const balEnding = byId("bal-ending");
+
+export function expandSection(section) {
+  if (section === null) return;
+  if (section.classList.contains("collapsed")) {
+    section.classList.remove("collapsed");
+    const head = section.querySelector(".sec-head");
+    if (head !== null) {
+      head.setAttribute("aria-expanded", "true");
+    }
+    const collapsed = Array.from(
+      document.querySelectorAll(".section.collapsed[data-section]"),
+    ).map((s) => s.dataset.section);
+    void setCollapsedSections(collapsed).catch(() => {});
+  }
+}
 
 /** The sheet currently on screen; the edit helpers update it in place. */
 let sheet = null;
@@ -45,6 +65,7 @@ export function renderMonth(view) {
   const income = view.entries.filter((entry) => entry.kind === "income");
   const expense = view.entries.filter((entry) => entry.kind === "expense");
   const notes = view.entries.filter((entry) => entry.kind === "note");
+  const debt = (view.debt && view.debt.entries) || [];
 
   const fixedIncome = view.fixed.filter((row) => row.kind === "fixed_income");
   const fixedExpense = view.fixed.filter((row) => row.kind === "fixed_expense");
@@ -52,6 +73,9 @@ export function renderMonth(view) {
   tbIncome.replaceChildren(...income.map((entry) => entryRow(entry, view.ym)));
   tbExpense.replaceChildren(...expense.map((entry) => entryRow(entry, view.ym)));
   tbNotes.replaceChildren(...notes.map((entry) => entryRow(entry, view.ym)));
+  if (tbDebt !== null) {
+    tbDebt.replaceChildren(...debt.map((entry) => debtRow(entry, view.ym)));
+  }
   tbFixedIncome.replaceChildren(
     ...fixedIncome.map((row) => fixedRow(row, "fixed_income", view.ym)),
   );
@@ -77,11 +101,7 @@ export function addEntry(entry, ym) {
   const row = entryRow(entry, sheet.ym);
   tbody.prepend(row);
 
-  const section = tbody.closest(".section");
-  if (section !== null) {
-    section.classList.remove("collapsed");
-    section.querySelector(".sec-head").setAttribute("aria-expanded", "true");
-  }
+  expandSection(tbody.closest(".section"));
 
   sheet.entries = [entry, ...sheet.entries];
   paintTotals();
@@ -103,13 +123,26 @@ export function addFixedRow(row, ym) {
   const tr = fixedRow(row, row.kind, sheet.ym);
   tbody.prepend(tr);
 
-  const section = tbody.closest(".section");
-  if (section !== null) {
-    section.classList.remove("collapsed");
-    section.querySelector(".sec-head").setAttribute("aria-expanded", "true");
-  }
+  expandSection(tbody.closest(".section"));
 
   sheet.fixed = [row, ...sheet.fixed];
+  paintTotals();
+  flash(tr);
+}
+
+/** Prepends an already-saved debt row to its section. */
+export function addDebtRow(row, ym) {
+  if (sheet === null) return;
+  if (ym !== undefined && sheet.ym !== ym) return;
+  if (tbDebt === null) return;
+
+  const tr = debtRow(row, sheet.ym);
+  tbDebt.prepend(tr);
+
+  expandSection(tbDebt.closest(".section"));
+
+  if (!sheet.debt) sheet.debt = { initial: 0, remaining: 0, entries: [] };
+  sheet.debt.entries = [row, ...sheet.debt.entries];
   paintTotals();
   flash(tr);
 }
@@ -118,8 +151,16 @@ export function addFixedRow(row, ym) {
 export function patchRowModel(ym, kind, id, fields) {
   if (sheet === null || sheet.ym !== ym) return;
 
-  const list = isFixedKind(kind) ? sheet.fixed : sheet.entries;
-  const item = list.find((row) => row.kind === kind && row.id === id);
+  let list;
+  if (kind === "debt") {
+    list = (sheet.debt && sheet.debt.entries) || [];
+  } else if (isFixedKind(kind)) {
+    list = sheet.fixed;
+  } else {
+    list = sheet.entries;
+  }
+
+  const item = list.find((row) => (kind === "debt" ? row.id === id : row.kind === kind && row.id === id));
   if (item !== undefined) Object.assign(item, fields);
 
   paintTotals();
@@ -147,7 +188,11 @@ export function forgetRow(ym, kind, id) {
 
   pendingDeletes.delete(rowKey(kind, id));
 
-  if (isFixedKind(kind)) {
+  if (kind === "debt") {
+    if (sheet.debt) {
+      sheet.debt.entries = sheet.debt.entries.filter((entry) => entry.id !== id);
+    }
+  } else if (isFixedKind(kind)) {
     sheet.fixed = sheet.fixed.filter((row) => !(row.kind === kind && row.id === id));
   } else {
     sheet.entries = sheet.entries.filter((entry) => !(entry.kind === kind && entry.id === id));
@@ -159,6 +204,16 @@ export function forgetRow(ym, kind, id) {
   if (stale !== null) stale.remove();
 
   paintTotals();
+}
+
+export function setDebtInitial(value) {
+  if (sheet === null || !sheet.debt) return;
+  sheet.debt.initial = value;
+  paintTotals();
+}
+
+export function getDebtInitial() {
+  return sheet === null || !sheet.debt ? 0 : sheet.debt.initial;
 }
 
 /** The ⚙ editor saved a new opening balance; repaint every derived number. */
@@ -194,14 +249,14 @@ function entryRow(entry, ym) {
   const cellName = el("span", "cell-name");
   const nameText = el("span", "txt", entry.name);
   nameText.dataset.field = "name";
-  cellName.append(el("span", "page-icon", "📄"), nameText);
+  cellName.append(nameText);
   name.append(cellName);
 
   tr.append(handleCell(), name);
 
   if (entry.kind !== "note") tr.append(amountCell(entry.amount, entry.kind));
 
-  tr.append(el("td", "date", prettyDate(entry.date)), commentCell(entry.comment), actionCell());
+  tr.append(createDateCell(entry.date, ym), commentCell(entry.comment), actionCell());
 
   wireRow(tr, {
     ym,
@@ -228,7 +283,7 @@ function fixedRow(row, kind, ym) {
   const cellName = el("span", "cell-name");
   const nameText = el("span", "txt", row.name);
   nameText.dataset.field = "name";
-  cellName.append(el("span", "page-icon", "📄"), nameText);
+  cellName.append(nameText);
   name.append(cellName);
 
   tr.append(handleCell(), name, amountCell(row.amount, kind), commentCell(row.comment), actionCell());
@@ -247,6 +302,68 @@ function fixedRow(row, kind, ym) {
   return tr;
 }
 
+/** A debt-section row. */
+function debtRow(entry, ym) {
+  const tr = el("tr");
+  tr.dataset.id = String(entry.id);
+  tr.dataset.kind = "debt";
+
+  const name = el("td");
+  const cellName = el("span", "cell-name");
+  const nameText = el("span", "txt", entry.name);
+  nameText.dataset.field = "name";
+  cellName.append(nameText);
+  name.append(cellName);
+
+  const dirTd = el("td");
+  const dirBtn = el(
+    "button",
+    `tag-debt-type ${entry.direction === "add" ? "type-more" : "type-less"}`,
+  );
+  dirBtn.type = "button";
+  dirBtn.dataset.action = "toggle-direction";
+  dirBtn.title = "Click to toggle direction";
+  dirBtn.textContent = entry.direction === "add" ? "+ More" : "− Less";
+  dirTd.append(dirBtn);
+
+  tr.append(
+    handleCell(),
+    name,
+    dirTd,
+    debtAmountCell(entry.amount, entry.direction),
+    createDateCell(entry.date, ym),
+    commentCell(entry.comment),
+    actionCell(),
+  );
+
+  wireRow(tr, {
+    ym,
+    kind: "debt",
+    id: entry.id,
+    name: entry.name,
+    direction: entry.direction,
+    amount: entry.amount,
+    comment: entry.comment,
+    date: entry.date,
+    virtual: false,
+  });
+
+  return tr;
+}
+
+function debtAmountCell(amount, direction) {
+  const td = el("td");
+  const isAdd = direction === "add";
+  const value = el("span", `amount ${isAdd ? "debit" : "credit"}`);
+  if (isAdd) value.append("+");
+  else value.append("−");
+  const text = el("span", "txt", fmtVND(amount ?? 0));
+  text.dataset.field = "amount";
+  value.append(text);
+  td.append(value);
+  return td;
+}
+
 function handleCell() {
   const td = el("td");
   const handle = el("span", "handle", "⠿⠿");
@@ -257,10 +374,11 @@ function handleCell() {
 }
 
 function commentCell(comment) {
-  const td = el("td");
+  const td = el("td", "comment-cell");
   const text = el("span", "comment");
-  const value = el("span", "txt", comment ?? "");
+  const value = el("span", "txt", comment || "");
   value.dataset.field = "comment";
+  value.dataset.placeholder = "—";
   text.append(value);
   td.append(text);
   return td;
@@ -281,24 +399,28 @@ function amountCell(amount, kind) {
   return td;
 }
 
-/** `⚙` focuses the name cell; `⋮` opens the row menu (delete lives there). */
 function actionCell() {
   const td = el("td", "row-act");
 
-  const edit = el("button", "row-edit", "⚙");
-  edit.type = "button";
-  edit.setAttribute("aria-label", "Edit item");
-  edit.dataset.action = "edit";
-  edit.title = "Edit item";
+  const del = el("button", "row-del");
+  del.type = "button";
+  del.setAttribute("aria-label", "Delete row");
+  del.dataset.action = "delete";
+  del.title = "Delete row";
+  del.append(iconGlyph("trash"));
 
-  const menu = el("button", "row-more", "⋮");
-  menu.type = "button";
-  menu.setAttribute("aria-label", "Row actions");
-  menu.dataset.action = "menu";
-  menu.title = "Row actions";
-
-  td.append(edit, menu);
+  td.append(del);
   return td;
+}
+
+function iconGlyph(name, className = "glyph") {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", className);
+  svg.setAttribute("aria-hidden", "true");
+  const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+  use.setAttribute("href", `/icons.svg#${name}`);
+  svg.append(use);
+  return svg;
 }
 
 /**
@@ -319,15 +441,26 @@ function paintTotals() {
   const expenseTotal =
     sumAmounts(fixedExpense) + sumAmounts(expenseEntries);
 
-  // The month sections' SUM footers total that section only; the balance bar
+  // Section badges at top right of each section; the balance bar
   // is the one place fixed and this-month amounts are combined.
-  sumIncome.textContent = fmtVND(sumAmounts(incomeEntries));
-  sumExpense.textContent = expenseSum(sumAmounts(expenseEntries));
-  sumFixedIncome.textContent = fmtVND(sumAmounts(fixedIncome));
-  sumFixedExpense.textContent = expenseSum(sumAmounts(fixedExpense));
+  totalIncome.textContent = fmtVND(sumAmounts(incomeEntries));
+  totalExpense.textContent = expenseSum(sumAmounts(expenseEntries));
+  totalFixedIncome.textContent = fmtVND(sumAmounts(fixedIncome));
+  totalFixedExpense.textContent = expenseSum(sumAmounts(fixedExpense));
 
-  for (const sum of [sumIncome, sumExpense, sumFixedIncome, sumFixedExpense]) {
-    byId(sum.id.replace("sum-", "total-")).textContent = sum.textContent;
+  if (sheet.debt) {
+    const visibleDebt = sheet.debt.entries.filter(
+      (entry) => !pendingDeletes.has(rowKey("debt", entry.id)),
+    );
+    let net = 0;
+    for (const d of visibleDebt) {
+      if (d.direction === "add") net += d.amount;
+      else if (d.direction === "pay") net -= d.amount;
+    }
+    const rem = sheet.debt.initial + net;
+    sheet.debt.remaining = rem;
+    if (debtInitial !== null) debtInitial.textContent = fmtVND(sheet.debt.initial);
+    if (debtRemaining !== null) debtRemaining.textContent = `Remaining: ${fmtVND(rem)}`;
   }
 
   const summary = {
@@ -375,6 +508,7 @@ function sectionFor(kind) {
   if (kind === "expense") return tbExpense;
   if (kind === "fixed_income") return tbFixedIncome;
   if (kind === "fixed_expense") return tbFixedExpense;
+  if (kind === "debt") return tbDebt;
   if (kind === "note") return tbNotes;
   return null;
 }

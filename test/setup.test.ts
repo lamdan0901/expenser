@@ -47,6 +47,24 @@ function putInitial(value: unknown, cookie?: string): Promise<Response> {
   });
 }
 
+function getCollapsed(cookie?: string): Promise<Response> {
+  const headers: Record<string, string> = {};
+  if (cookie !== undefined) headers.Cookie = cookie;
+  return SELF.fetch("https://example.com/api/settings/collapsed", {
+    headers,
+  });
+}
+
+function putCollapsed(body: unknown, cookie?: string): Promise<Response> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (cookie !== undefined) headers.Cookie = cookie;
+  return SELF.fetch("https://example.com/api/settings/collapsed", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify(body),
+  });
+}
+
 /** `Set-Cookie` value without its attributes, ready to send back as a Cookie. */
 function cookiePair(response: Response): string {
   const header = response.headers.get("Set-Cookie");
@@ -213,5 +231,78 @@ describe("PUT /api/settings/initial", () => {
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: "invalid_value" });
+  });
+});
+
+describe("GET /api/settings/collapsed", () => {
+  it("requires auth", async () => {
+    const response = await getCollapsed();
+    expect(response.status).toBe(401);
+  });
+
+  it("returns default collapsed sections when none stored", async () => {
+    const cookie = await signedCookie();
+    const response = await getCollapsed(cookie);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ collapsed: ["income"] });
+  });
+});
+
+describe("PUT /api/settings/collapsed", () => {
+  it("requires auth", async () => {
+    const response = await putCollapsed({ collapsed: [] });
+    expect(response.status).toBe(401);
+  });
+
+  it("stores collapsed sections array and returns them", async () => {
+    const cookie = await signedCookie();
+    const response = await putCollapsed({ collapsed: ["expense", "notes", "debt"] }, cookie);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      collapsed: ["expense", "notes", "debt"],
+    });
+
+    const getRes = await getCollapsed(cookie);
+    await expect(getRes.json()).resolves.toEqual({
+      collapsed: ["expense", "notes", "debt"],
+    });
+
+    const settings = await openSettings(env);
+    expect(JSON.parse(settings.collapsed_sections)).toEqual(["expense", "notes", "debt"]);
+  });
+
+  it("allows setting single section collapsed status", async () => {
+    const cookie = await signedCookie();
+    // Default has "income". Collapsing "debt" adds it.
+    let response = await putCollapsed({ section: "debt", collapsed: true }, cookie);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      collapsed: ["income", "debt"],
+    });
+
+    // Uncollapsing "income" removes it.
+    response = await putCollapsed({ section: "income", collapsed: false }, cookie);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      collapsed: ["debt"],
+    });
+  });
+
+  it("rejects invalid section names", async () => {
+    const cookie = await signedCookie();
+    const res1 = await putCollapsed({ collapsed: ["invalid_sec"] }, cookie);
+    expect(res1.status).toBe(400);
+    await expect(res1.json()).resolves.toEqual({ error: "invalid_section" });
+
+    const res2 = await putCollapsed({ section: "invalid_sec", collapsed: true }, cookie);
+    expect(res2.status).toBe(400);
+    await expect(res2.json()).resolves.toEqual({ error: "invalid_section" });
+  });
+
+  it("rejects invalid payloads", async () => {
+    const cookie = await signedCookie();
+    const res = await putCollapsed({ foo: "bar" }, cookie);
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toEqual({ error: "invalid_payload" });
   });
 });

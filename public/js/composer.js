@@ -2,7 +2,7 @@
 // and date chip. Enter anywhere in the form POSTs the entry, then the caller
 // prepends the saved row — the month is never refetched for a new entry.
 import { ApiError, createEntry } from "./api.js";
-import { monthISOBounds, parseK, todayIso } from "./format.js";
+import { monthISOBounds, parseK, prettyDate, todayIso } from "./format.js";
 
 const app = byId("app");
 const form = byId("composer");
@@ -209,12 +209,7 @@ function syncDateLabel() {
 
 /** `"2026-11-01"` → `"Nov 1"` for the compact chip. */
 function shortDate(iso) {
-  const [year, month, day] = iso.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  });
+  return prettyDate(iso);
 }
 
 // ── Feedback ──────────────────────────────────────────────────────────────

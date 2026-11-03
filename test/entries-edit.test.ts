@@ -93,6 +93,60 @@ describe("PATCH /api/entry/:id", () => {
     });
   });
 
+  it("patches date and comment within the month", async () => {
+    const id = await makeEntry("2026-11", {
+      kind: "expense",
+      name: "Groceries",
+      amount: 500,
+      date: "2026-11-02",
+      comment: "Supermarket",
+    });
+
+    const response = await patchEntry(id, { date: "2026-11-20", comment: "Farmers market" });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      id,
+      kind: "expense",
+      name: "Groceries",
+      amount: 500_000,
+      date: "2026-11-20",
+      comment: "Farmers market",
+      position: 1,
+    });
+
+    await expect(getMonth(env, "2026-11")).resolves.toMatchObject({
+      entries: [
+        {
+          id,
+          date: "2026-11-20",
+          comment: "Farmers market",
+        },
+      ],
+    });
+  });
+
+  it("can clear a comment by patching an empty string", async () => {
+    const id = await makeEntry("2026-11", {
+      kind: "expense",
+      name: "Coffee",
+      amount: 50,
+      date: "2026-11-05",
+      comment: "With team",
+    });
+
+    const response = await patchEntry(id, { comment: "" });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      id,
+      comment: "",
+    });
+
+    await expect(getMonth(env, "2026-11")).resolves.toMatchObject({
+      entries: [{ id, comment: "" }],
+    });
+  });
+
   it("moves a row in the month's entry order by patching its position", async () => {
     const first = await makeEntry("2026-11", {
       kind: "expense",

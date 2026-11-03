@@ -9,4 +9,7 @@
   <symbol id="arrow-up" viewBox="0 0 24 24"><path d="M6 18 18 6M7 6h11v11"/></symbol>
   <symbol id="arrow-down" viewBox="0 0 24 24"><path d="m6 6 12 12M7 18h11V7"/></symbol>
   <symbol id="flag" viewBox="0 0 24 24"><path d="M4 22V3c6-4 10 4 16 0v13c-6 4-10-4-16 0m5-12v11m6-9v11M4 9c6-4 10 4 16 0"/></symbol>
+  <symbol id="download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
+  <symbol id="trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></symbol>
+  <symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
 </svg>

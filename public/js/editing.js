@@ -8,18 +8,24 @@
 // thousands scale (500 → 500,000 ₫).
 import {
   ApiError,
+  createDebtEntry,
   createEntry,
   createFixedRow,
+  deleteDebtEntry,
   deleteEntry,
   deleteFixedRow,
   deleteTemplate,
   exportMonthUrl,
+  patchDebtEntry,
   patchEntry,
   patchFixedRow,
   patchTemplate,
+  reorderDebtEntries,
   reorderEntries,
   reorderFixed,
+  setCollapsedSections,
   setInitialBalance,
+  setInitialDebt,
 } from "./api.js";
 import { fmtVND, monthISOBounds, parseK, prettyDate, todayIso } from "./format.js";
 
@@ -31,6 +37,7 @@ const KIND_BY_TBODY = {
   "tb-expense": "expense",
   "tb-fixedinc": "fixed_income",
   "tb-fixedexp": "fixed_expense",
+  "tb-debt": "debt",
   "tb-notes": "note",
 };
 
@@ -39,6 +46,7 @@ const TBODY_BY_KIND = {
   expense: "tb-expense",
   fixed_income: "tb-fixedinc",
   fixed_expense: "tb-fixedexp",
+  debt: "tb-debt",
   note: "tb-notes",
 };
 
@@ -83,6 +91,22 @@ export function initEditing(callbacks) {
     settingsForm.addEventListener("submit", (event) => void saveSettings(event));
   }
 
+  const debtButton = byId("debt-initial-btn");
+  if (debtButton !== null) debtButton.addEventListener("click", openDebtSettings);
+
+  const debtCancel = byId("debt-dialog-cancel");
+  if (debtCancel !== null) {
+    debtCancel.addEventListener("click", () => {
+      const dialog = byId("debt-dialog");
+      if (dialog !== null) dialog.close();
+    });
+  }
+
+  const debtForm = byId("debt-form");
+  if (debtForm !== null) {
+    debtForm.addEventListener("submit", (event) => void saveDebtSettings(event));
+  }
+
   for (const tbody of document.querySelectorAll("tbody[id]")) wireSortable(tbody);
 
   document.addEventListener("click", (event) => {
@@ -121,6 +145,11 @@ export function wireRow(row, item) {
     prepareEditable(text, row);
   }
 
+  const dateInput = row.querySelector(".cell-date-input");
+  if (dateInput !== null && !isFixedKind(item.kind)) {
+    prepareDateEditable(dateInput, row);
+  }
+
   const handle = row.querySelector(".handle");
   if (handle !== null && isFixedKind(item.kind) && item.virtual) {
     handle.draggable = false;
@@ -133,17 +162,137 @@ export function wireRow(row, item) {
     if (action === null || !row.contains(action)) return;
 
     event.stopPropagation();
-    if (action.dataset.action === "menu") openMenu(row, action);
+    if (action.dataset.action === "delete") startDelete(row);
+    else if (action.dataset.action === "menu") openMenu(row, action);
     else if (action.dataset.action === "edit") focusField(row, "name");
+    else if (action.dataset.action === "toggle-direction") void toggleDebtDirection(row, action);
   });
 }
 
 // ── Inline editing ────────────────────────────────────────────────────────
 
+export function createDateCell(date, ym) {
+  const td = el("td", "date");
+  const wrap = el("label", "date-btn");
+  wrap.title = "Change date";
+
+  const text = el("span", "date-lbl", prettyDate(date));
+  const input = el("input", "cell-date-input");
+  input.type = "date";
+  input.value = date;
+  input.setAttribute("aria-label", "Change date");
+
+  if (ym) {
+    const { min, max } = monthISOBounds(ym);
+    input.min = min;
+    input.max = max;
+  }
+
+  wrap.append(text, input);
+  td.append(wrap);
+  return td;
+}
+
+function prepareDateEditable(input, row) {
+  const td = input.closest("td.date");
+  const label = input.closest(".date-btn")?.querySelector(".date-lbl");
+
+  input.addEventListener("click", (event) => {
+    if (row.classList.contains("row-busy")) {
+      event.preventDefault();
+      return;
+    }
+    if (typeof input.showPicker === "function") {
+      try {
+        input.showPicker();
+      } catch {
+        // Ignored if already showing
+      }
+    }
+  });
+
+  if (td !== null) {
+    td.addEventListener("click", (event) => {
+      if (row.classList.contains("row-busy")) return;
+      if (event.target !== input) {
+        if (typeof input.showPicker === "function") {
+          try {
+            input.showPicker();
+          } catch {
+            input.focus();
+          }
+        } else {
+          input.focus();
+        }
+      }
+    });
+  }
+
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      if (typeof input.showPicker === "function") {
+        try {
+          input.showPicker();
+          event.preventDefault();
+        } catch {}
+      }
+    }
+  });
+
+  input.addEventListener("change", async () => {
+    const item = rowData.get(row);
+    if (item === undefined) return;
+
+    const newDate = input.value;
+    if (!newDate || newDate === item.date) {
+      if (label && item.date) label.textContent = prettyDate(item.date);
+      return;
+    }
+
+    const { min, max } = monthISOBounds(item.ym);
+    if (newDate < min || newDate > max) {
+      config.onNotice("Pick a day inside the open month.");
+      input.value = item.date;
+      if (label) label.textContent = prettyDate(item.date);
+      return;
+    }
+
+    row.classList.add("row-busy");
+    try {
+      if (item.kind === "debt") await patchDebtEntry(item.id, { date: newDate });
+      else await patchEntry(item.id, { date: newDate });
+      item.date = newDate;
+      rowData.set(row, item);
+      if (label) label.textContent = prettyDate(newDate);
+      config.onRowPatched(item.ym, item.kind, item.id, { date: newDate });
+      markSaved(input);
+    } catch (error) {
+      input.value = item.date;
+      if (label) label.textContent = prettyDate(item.date);
+      if (error instanceof ApiError && error.status === 401) {
+        config.onSessionExpired();
+      } else {
+        config.onNotice(errorMessage(error));
+      }
+    } finally {
+      row.classList.remove("row-busy");
+    }
+  });
+}
+
 function prepareEditable(text, row) {
   text.setAttribute("contenteditable", "true");
   text.setAttribute("spellcheck", "false");
   if (text.dataset.field === "amount") text.setAttribute("inputmode", "decimal");
+
+  const cell = text.closest("td");
+  if (cell !== null) {
+    cell.addEventListener("click", (event) => {
+      if (event.target !== text && !text.contains(event.target)) {
+        text.focus();
+      }
+    });
+  }
 
   text.addEventListener("focus", () => beginEdit(text, row));
   text.addEventListener("blur", () => void commitEdit(text));
@@ -210,6 +359,8 @@ async function commitEdit(text) {
     if (isFixedKind(item.kind)) {
       if (item.virtual) await patchTemplate(-item.id, { [field]: value });
       else await patchFixedRow(item.ym, item.id, { [field]: value });
+    } else if (item.kind === "debt") {
+      await patchDebtEntry(item.id, { [field]: value });
     } else {
       await patchEntry(item.id, { [field]: value });
     }
@@ -263,6 +414,7 @@ function parseVnd(text) {
 
 function displayValue(field, value) {
   if (field === "amount") return fmtVND(value ?? 0);
+  if (field === "date") return prettyDate(value);
   return value ?? "";
 }
 
@@ -390,6 +542,7 @@ async function saveOrder(tbody) {
   tbody.dataset.saving = "true";
   try {
     if (isFixedKind(kind)) await reorderFixed(item.ym, kind, ids);
+    else if (kind === "debt") await reorderDebtEntries(item.ym, ids);
     else await reorderEntries(item.ym, kind, ids);
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
@@ -457,6 +610,8 @@ async function commitDelete(key) {
     if (isFixedKind(item.kind)) {
       if (item.virtual) await deleteTemplate(-item.id);
       else await deleteFixedRow(item.ym, item.id);
+    } else if (item.kind === "debt") {
+      await deleteDebtEntry(item.id);
     } else {
       await deleteEntry(item.id);
     }
@@ -525,14 +680,19 @@ function addDraft(kind) {
   tbody.prepend(row);
 
   const section = tbody.closest(".section");
-  if (section !== null) {
+  if (section !== null && section.classList.contains("collapsed")) {
     section.classList.remove("collapsed");
-    section.querySelector(".sec-head").setAttribute("aria-expanded", "true");
+    const head = section.querySelector(".sec-head");
+    if (head !== null) head.setAttribute("aria-expanded", "true");
+    const collapsed = Array.from(
+      document.querySelectorAll(".section.collapsed[data-section]"),
+    ).map((s) => s.dataset.section);
+    void setCollapsedSections(collapsed).catch(() => {});
   }
 
   draftState.set(row, {
     saving: false,
-    item: { ym: activeYm, kind, date, name: "", amount: null, comment: "" },
+    item: { ym: activeYm, kind, direction: "pay", date, name: "", amount: null, comment: "" },
   });
 
   const name = row.querySelector('.txt[data-field="name"]');
@@ -551,28 +711,92 @@ function draftRow(kind, date) {
   const nameCell = el("td");
   const name = el("span", "cell-name");
   const nameText = editable("name", "New item");
-  name.append(el("span", "page-icon", "📄"), nameText);
+  name.append(nameText);
   nameCell.append(name);
 
   row.append(handleCell, nameCell);
+
+  if (kind === "debt") {
+    const dirTd = el("td");
+    const dirBtn = el("button", "tag-debt-type type-less");
+    dirBtn.type = "button";
+    dirBtn.dataset.action = "draft-toggle-direction";
+    dirBtn.textContent = "− Less";
+    dirBtn.title = "Click to toggle direction";
+    dirTd.append(dirBtn);
+    row.append(dirTd);
+  }
 
   if (kind !== "note") {
     const amountCell = el("td");
     const debit = kind === "expense" || kind === "fixed_expense";
     const amount = el("span", `amount ${debit ? "debit" : "credit"}`);
-    if (debit) amount.append("−");
+    amount.append("−");
     amount.append(editable("amount", "Amount (k ₫)"));
     amountCell.append(amount);
     row.append(amountCell);
   }
 
   // Fixed sections have no date column; their rows repeat every month.
-  if (!isFixedKind(kind)) row.append(el("td", "date", prettyDate(date)));
+  if (!isFixedKind(kind)) {
+    const td = createDateCell(date, activeYm);
+    const dateInput = td.querySelector(".cell-date-input");
+    const dateLabel = td.querySelector(".date-lbl");
+    if (dateInput !== null) {
+      dateInput.addEventListener("click", () => {
+        if (typeof dateInput.showPicker === "function") {
+          try {
+            dateInput.showPicker();
+          } catch {}
+        }
+      });
+      td.addEventListener("click", (event) => {
+        if (event.target !== dateInput) {
+          if (typeof dateInput.showPicker === "function") {
+            try {
+              dateInput.showPicker();
+            } catch {
+              dateInput.focus();
+            }
+          }
+        }
+      });
+      dateInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          if (typeof dateInput.showPicker === "function") {
+            try {
+              dateInput.showPicker();
+              event.preventDefault();
+            } catch {}
+          }
+        }
+      });
+      dateInput.addEventListener("change", () => {
+        const state = draftState.get(row);
+        if (state !== undefined && dateInput.value) {
+          const { min, max } = monthISOBounds(activeYm);
+          if (dateInput.value >= min && dateInput.value <= max) {
+            state.item.date = dateInput.value;
+            if (dateLabel !== null) dateLabel.textContent = prettyDate(dateInput.value);
+          } else {
+            dateInput.value = state.item.date;
+          }
+        }
+      });
+    }
+    row.append(td);
+  }
 
-  const commentCell = el("td");
+  const commentCell = el("td", "comment-cell");
   const comment = el("span", "comment");
-  comment.append(editable("comment", "Comment"));
+  const commentText = editable("comment", "Comment");
+  comment.append(commentText);
   commentCell.append(comment);
+  commentCell.addEventListener("click", (event) => {
+    if (event.target !== commentText && !commentText.contains(event.target)) {
+      commentText.focus();
+    }
+  });
   row.append(commentCell);
 
   const actions = el("td", "row-act");
@@ -619,7 +843,28 @@ function draftRow(kind, date) {
 
   row.addEventListener("click", (event) => {
     const action = event.target.closest("[data-action]");
-    if (action === null || action.dataset.action !== "discard") return;
+    if (action === null) return;
+
+    if (action.dataset.action === "draft-toggle-direction") {
+      event.stopPropagation();
+      const state = draftState.get(row);
+      if (state !== undefined) {
+        state.item.direction = state.item.direction === "add" ? "pay" : "add";
+        const isAdd = state.item.direction === "add";
+        action.className = `tag-debt-type ${isAdd ? "type-more" : "type-less"}`;
+        action.textContent = isAdd ? "+ More" : "− Less";
+        const amtSpan = row.querySelector(".amount");
+        if (amtSpan !== null) {
+          amtSpan.className = `amount ${isAdd ? "debit" : "credit"}`;
+          if (amtSpan.firstChild && amtSpan.firstChild.nodeType === Node.TEXT_NODE) {
+            amtSpan.firstChild.textContent = isAdd ? "+" : "−";
+          }
+        }
+      }
+      return;
+    }
+
+    if (action.dataset.action !== "discard") return;
 
     event.stopPropagation();
     discardDraft(row);
@@ -671,37 +916,57 @@ async function saveDraft(row, focusAmount = false) {
     // Fixed rows go through the fixed-row endpoint: in the current or a future
     // month the backend also creates the backing template, so the row repeats.
     const fixed = isFixedKind(item.kind);
-    const saved = fixed
-      ? await createFixedRow(item.ym, {
-          kind: item.kind,
-          name: item.name,
-          amount: item.amount / 1000,
-          comment: item.comment,
-        })
-      : await createEntry(item.ym, {
-          kind: item.kind,
-          name: item.name,
-          amount: item.kind === "note" ? undefined : item.amount / 1000,
-          date: item.date,
-          comment: item.comment,
-        });
+    let saved;
+    let created;
 
-    const created = fixed
-      ? {
-          id: saved.id,
-          kind: item.kind,
-          name: item.name,
-          amount: item.amount,
-          comment: item.comment,
-        }
-      : {
-          id: saved.id,
-          kind: item.kind,
-          name: item.name,
-          amount: item.amount,
-          date: item.date,
-          comment: item.comment,
-        };
+    if (fixed) {
+      saved = await createFixedRow(item.ym, {
+        kind: item.kind,
+        name: item.name,
+        amount: item.amount / 1000,
+        comment: item.comment,
+      });
+      created = {
+        id: saved.id,
+        kind: item.kind,
+        name: item.name,
+        amount: item.amount,
+        comment: item.comment,
+      };
+    } else if (item.kind === "debt") {
+      saved = await createDebtEntry(item.ym, {
+        direction: item.direction || "pay",
+        name: item.name,
+        amount: item.amount / 1000,
+        date: item.date,
+        comment: item.comment,
+      });
+      created = {
+        id: saved.id,
+        kind: "debt",
+        direction: item.direction || "pay",
+        name: item.name,
+        amount: item.amount,
+        date: item.date,
+        comment: item.comment,
+      };
+    } else {
+      saved = await createEntry(item.ym, {
+        kind: item.kind,
+        name: item.name,
+        amount: item.kind === "note" ? undefined : item.amount / 1000,
+        date: item.date,
+        comment: item.comment,
+      });
+      created = {
+        id: saved.id,
+        kind: item.kind,
+        name: item.name,
+        amount: item.amount,
+        date: item.date,
+        comment: item.comment,
+      };
+    }
 
     // The row can be discarded while the POST is in flight (the ✕ handler runs
     // after the blur that started this save, or Enter produced a slow request).
@@ -710,10 +975,12 @@ async function saveDraft(row, focusAmount = false) {
     if (draftState.get(row) !== state || !row.isConnected) {
       try {
         if (fixed) await deleteFixedRow(item.ym, saved.id);
+        else if (item.kind === "debt") await deleteDebtEntry(saved.id);
         else await deleteEntry(saved.id);
       } catch {
         config.onNotice("Could not discard the new row. Try again.");
         if (fixed) config.onFixedCreated(created, item.ym);
+        else if (item.kind === "debt") config.onDebtCreated(created, item.ym);
         else config.onEntryCreated(created, item.ym);
       }
       return;
@@ -722,6 +989,7 @@ async function saveDraft(row, focusAmount = false) {
     draftState.delete(row);
     row.remove();
     if (fixed) config.onFixedCreated(created, item.ym);
+    else if (item.kind === "debt") config.onDebtCreated(created, item.ym);
     else config.onEntryCreated(created, item.ym);
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
@@ -763,6 +1031,91 @@ function defaultDate(ym) {
   const today = todayIso();
   const { min, max } = monthISOBounds(ym);
   return today >= min && today <= max ? today : min;
+}
+
+async function toggleDebtDirection(row, btn) {
+  const item = rowData.get(row);
+  if (item === undefined || row.classList.contains("row-busy")) return;
+
+  const newDir = item.direction === "add" ? "pay" : "add";
+  row.classList.add("row-busy");
+
+  try {
+    await patchDebtEntry(item.id, { direction: newDir });
+    item.direction = newDir;
+    rowData.set(row, item);
+
+    const isAdd = newDir === "add";
+    btn.className = `tag-debt-type ${isAdd ? "type-more" : "type-less"}`;
+    btn.textContent = isAdd ? "+ More" : "− Less";
+
+    const amtSpan = row.querySelector(".amount");
+    if (amtSpan !== null) {
+      amtSpan.className = `amount ${isAdd ? "debit" : "credit"}`;
+      if (amtSpan.firstChild && amtSpan.firstChild.nodeType === Node.TEXT_NODE) {
+        amtSpan.firstChild.textContent = isAdd ? "+" : "−";
+      }
+    }
+
+    config.onRowPatched(item.ym, "debt", item.id, { direction: newDir });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      config.onSessionExpired();
+    } else {
+      config.onNotice(errorMessage(error));
+    }
+  } finally {
+    row.classList.remove("row-busy");
+  }
+}
+
+function openDebtSettings() {
+  const dialog = byId("debt-dialog");
+  if (dialog === null) return;
+
+  const initial = config.getDebtInitial ? config.getDebtInitial() : 0;
+  byId("debt-dialog-current").textContent = fmtVND(initial);
+  byId("debt-dialog-error").textContent = "";
+
+  const input = byId("debt-k");
+  input.value = initial > 0 && initial % 1000 === 0 ? String(initial / 1000) : "";
+
+  if (!dialog.open) dialog.showModal();
+  input.focus();
+  input.select();
+}
+
+async function saveDebtSettings(event) {
+  event.preventDefault();
+
+  const input = byId("debt-k");
+  const errorLine = byId("debt-dialog-error");
+  const value = parseInitialK(input.value);
+  if (value === null) {
+    errorLine.textContent = "Enter a whole number of thousands, zero or above.";
+    input.focus();
+    return;
+  }
+
+  const save = byId("debt-dialog-save");
+  save.disabled = true;
+  errorLine.textContent = "";
+
+  try {
+    await setInitialDebt(value);
+    if (config.onDebtInitialSaved) config.onDebtInitialSaved(value);
+    const dialog = byId("debt-dialog");
+    if (dialog !== null) dialog.close();
+    config.onRefresh();
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      config.onSessionExpired();
+    } else {
+      errorLine.textContent = "Could not save baseline debt. Try again.";
+    }
+  } finally {
+    save.disabled = false;
+  }
 }
 
 // ── Initial balance editor ────────────────────────────────────────────────

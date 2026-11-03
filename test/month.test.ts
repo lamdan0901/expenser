@@ -38,6 +38,7 @@ async function countRows(table: "months" | "fixed_rows"): Promise<number> {
 beforeEach(async () => {
   // Storage is not isolated per test, so each test starts from empty tables.
   await env.DB.batch([
+    env.DB.prepare("DELETE FROM debt_entries"),
     env.DB.prepare("DELETE FROM fixed_rows"),
     env.DB.prepare("DELETE FROM entries"),
     env.DB.prepare("DELETE FROM months"),
@@ -73,6 +74,7 @@ describe("GET /api/month/:ym", () => {
       ],
       entries: [],
       summary: { income: 500_000, expense: 0, ending: 500_000 },
+      debt: { initial: 0, remaining: 0, entries: [] },
     });
 
     // A read is not a write: neither the month nor its snapshot exists.

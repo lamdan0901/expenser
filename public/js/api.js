@@ -113,3 +113,43 @@ export function deleteTemplate(id) {
 export function exportMonthUrl(ym) {
   return `/api/month/${encodeURIComponent(ym)}/export`;
 }
+
+/** `POST /api/month/:ym/debt` — body `{direction, name, amount, date, comment}`. */
+export function createDebtEntry(ym, entry) {
+  return sendJson("POST", `/api/month/${encodeURIComponent(ym)}/debt`, entry);
+}
+
+/** `PATCH /api/debt/:id` — body carries fields to update. */
+export function patchDebtEntry(id, fields) {
+  return sendJson("PATCH", `/api/debt/${id}`, fields);
+}
+
+/** `DELETE /api/debt/:id`. */
+export function deleteDebtEntry(id) {
+  return sendJson("DELETE", `/api/debt/${id}`);
+}
+
+/** `POST /api/month/:ym/debt/reorder` — body `{ids}`. */
+export function reorderDebtEntries(ym, ids) {
+  return sendJson("POST", `/api/month/${encodeURIComponent(ym)}/debt/reorder`, { ids });
+}
+
+/** `PUT /api/settings/initial-debt` — `value` is full dong. */
+export function setInitialDebt(value) {
+  return sendJson("PUT", "/api/settings/initial-debt", { value });
+}
+
+/** `GET /api/settings/collapsed` — list of collapsed section keys. */
+export function getCollapsedSections() {
+  return request("/api/settings/collapsed").then((res) => res.json());
+}
+
+/** `PUT /api/settings/collapsed` — save collapsed sections array. */
+export function setCollapsedSections(collapsed) {
+  return sendJson("PUT", "/api/settings/collapsed", { collapsed });
+}
+
+/** `PUT /api/settings/collapsed` — update single section collapsed state. */
+export function setSectionCollapsed(section, collapsed) {
+  return sendJson("PUT", "/api/settings/collapsed", { section, collapsed });
+}

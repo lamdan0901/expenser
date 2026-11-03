@@ -5,19 +5,30 @@
 // and hands the fetched sheet to `render.js`; `composer.js` owns the fast
 // capture form. Keep this file a thin shell — inline editing, drag and the
 // action menus land in `render.js`/`editing.js` (Task 13).
-import { ApiError, getMe, getMonth, setInitialBalance, verifyPasscode } from "./api.js";
+import {
+  ApiError,
+  getCollapsedSections,
+  getMe,
+  getMonth,
+  setCollapsedSections,
+  setInitialBalance,
+  verifyPasscode,
+} from "./api.js";
 import { renderComposer } from "./composer.js";
 import { initEditing, parseInitialK } from "./editing.js";
 import { todayIso, ymLabel } from "./format.js";
 import {
+  addDebtRow,
   addEntry,
   addFixedRow,
   forgetRow,
+  getDebtInitial,
   getInitial,
   markRowDeleting,
   patchRowModel,
   renderMonth,
   restoreRow,
+  setDebtInitial,
   setInitial,
 } from "./render.js";
 
@@ -54,13 +65,16 @@ const composer = renderComposer({
 
 const editing = initEditing({
   getInitial,
+  getDebtInitial,
   onEntryCreated: addEntry,
   onFixedCreated: addFixedRow,
+  onDebtCreated: addDebtRow,
   onRowPatched: patchRowModel,
   onRowDeleting: markRowDeleting,
   onRowRestored: restoreRow,
   onRowForgotten: forgetRow,
   onInitialSaved: setInitial,
+  onDebtInitialSaved: setDebtInitial,
   onRefresh: () => {
     if (activeYm !== null) void loadMonth(activeYm);
   },
@@ -161,6 +175,37 @@ setupForm.addEventListener("submit", async (event) => {
   }
 });
 
+function applyCollapsedState(collapsedList) {
+  const collapsedSet = new Set(collapsedList);
+  for (const section of document.querySelectorAll(".section[data-section]")) {
+    const name = section.dataset.section;
+    const isCollapsed = collapsedSet.has(name);
+    section.classList.toggle("collapsed", isCollapsed);
+    const head = section.querySelector(".sec-head");
+    if (head !== null) {
+      head.setAttribute("aria-expanded", String(!isCollapsed));
+    }
+  }
+}
+
+function persistCollapsedSections() {
+  const collapsed = Array.from(
+    document.querySelectorAll(".section.collapsed[data-section]"),
+  ).map((s) => s.dataset.section);
+  void setCollapsedSections(collapsed).catch(() => {});
+}
+
+async function loadCollapsedSections() {
+  try {
+    const res = await getCollapsedSections();
+    if (res && Array.isArray(res.collapsed)) {
+      applyCollapsedState(res.collapsed);
+    }
+  } catch {
+    // Keep DOM defaults if request fails
+  }
+}
+
 // ── App shell and month navigation ────────────────────────────────────────
 
 function startApp() {
@@ -177,8 +222,10 @@ function startApp() {
 
     for (const head of document.querySelectorAll(".sec-head")) {
       head.addEventListener("click", () => {
-        const collapsed = head.closest(".section").classList.toggle("collapsed");
+        const section = head.closest(".section");
+        const collapsed = section.classList.toggle("collapsed");
         head.setAttribute("aria-expanded", String(!collapsed));
+        persistCollapsedSections();
       });
       head.addEventListener("keydown", (event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -188,6 +235,8 @@ function startApp() {
       });
     }
   }
+
+  void loadCollapsedSections();
 
   // A deep link wins; otherwise open the current month and write it to the URL.
   const ym = monthFromHash();

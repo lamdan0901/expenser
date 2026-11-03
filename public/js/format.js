@@ -20,6 +20,21 @@ const MONTHS = [
   "December",
 ];
 
+const SHORT_MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
 /**
  * Formats full dong with comma separators, no decimals, and a trailing `₫`:
  * `500000` → `"500,000 ₫"`. Negative values keep a leading minus.
@@ -52,10 +67,12 @@ export function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-/** `"2026-11-15"` → `"November 15, 2026"`. */
+/** `"2026-11-03"` → `"Nov 3"`. */
 export function prettyDate(iso) {
+  if (!iso) return "";
   const [year, month, day] = iso.split("-").map(Number);
-  return `${MONTHS[month - 1]} ${day}, ${year}`;
+  if (!month || !day) return "";
+  return `${SHORT_MONTHS[month - 1]} ${day}`;
 }
 
 /** `"2026-11"` → `"November 2026"`. */

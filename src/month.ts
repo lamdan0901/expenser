@@ -10,6 +10,7 @@
 import { isYm } from "./month-utils";
 import { INITIAL_BALANCE_KEY, openSettings, type Settings } from "./setup";
 import { listTemplates, type Template, type TemplateKind } from "./templates";
+import { getDebtView, type DebtView } from "./debt";
 
 /** Entry kinds; notes carry no amount and never count towards sums. */
 export type EntryKind = "income" | "expense" | "note";
@@ -43,6 +44,7 @@ export interface MonthView {
   fixed: FixedItem[];
   entries: Entry[];
   summary: { income: number; expense: number; ending: number };
+  debt: DebtView;
 }
 
 interface MonthRow {
@@ -95,6 +97,7 @@ export async function getMonth(env: Env, ym: string): Promise<MonthView> {
     ? await listFixedRows(env, ym)
     : (await listTemplates(env)).map(virtualRow);
   const entries = materialized ? await listEntries(env, ym) : [];
+  const debt = await getDebtView(env, ym);
 
   return {
     ym,
@@ -103,6 +106,7 @@ export async function getMonth(env: Env, ym: string): Promise<MonthView> {
     fixed,
     entries,
     summary: summarize(fixed, entries, initial),
+    debt,
   };
 }
 

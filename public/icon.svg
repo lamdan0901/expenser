@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="purpleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7c9cff"/>
+      <stop offset="100%" stop-color="#5a6fd8"/>
+    </linearGradient>
+    <filter id="billShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#282f6b" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <!-- Full Purple Squircle Background -->
+  <rect width="512" height="512" rx="112" fill="url(#purpleGrad)"/>
+  <rect width="510" height="510" x="1" y="1" rx="111" fill="none" stroke="#ffffff" stroke-width="2" stroke-opacity="0.25"/>
+
+  <!-- Banknote / Flying money / Currency Symbol (Scaled & Prominent) -->
+  <g fill="#ffffff" transform="translate(107, 158) scale(1.35)" filter="url(#billShadow)">
+    <!-- Wings (flying cash) -->
+    <path d="M-8 28 C-30 0, -10 -40, 48 -20 C20 -10, 5 4, -4 28 Z" fill="#ffffff" fill-opacity="0.9"/>
+    <path d="M228 28 C250 0, 230 -40, 172 -20 C200 -10, 215 4, 224 28 Z" fill="#ffffff" fill-opacity="0.9"/>
+
+    <!-- Bill background -->
+    <rect x="0" y="10" width="220" height="136" rx="18" fill="#ffffff"/>
+    <rect x="10" y="20" width="200" height="116" rx="12" fill="none" stroke="#5a6fd8" stroke-width="4"/>
+
+    <!-- Center coin badge with ₫ currency mark -->
+    <circle cx="110" cy="78" r="34" fill="#5a6fd8" fill-opacity="0.12"/>
+    <circle cx="110" cy="78" r="28" fill="none" stroke="#5a6fd8" stroke-width="4"/>
+    <text x="110" y="88" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="28" font-weight="bold" fill="#5a6fd8" text-anchor="middle">₫</text>
+
+    <!-- Corner decorative circles on bill -->
+    <circle cx="26" cy="36" r="6" fill="#5a6fd8" fill-opacity="0.6"/>
+    <circle cx="194" cy="36" r="6" fill="#5a6fd8" fill-opacity="0.6"/>
+    <circle cx="26" cy="120" r="6" fill="#5a6fd8" fill-opacity="0.6"/>
+    <circle cx="194" cy="120" r="6" fill="#5a6fd8" fill-opacity="0.6"/>
+  </g>
+</svg>

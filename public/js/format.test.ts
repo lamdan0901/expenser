@@ -44,7 +44,8 @@ describe("ymLabel", () => {
 });
 
 describe("prettyDate", () => {
-  it("spells out a full ISO day", () => {
-    expect(prettyDate("2026-11-15")).toBe("November 15, 2026");
+  it("formats an ISO day as short month and day", () => {
+    expect(prettyDate("2026-11-03")).toBe("Nov 3");
+    expect(prettyDate("2026-11-15")).toBe("Nov 15");
   });
 });
