@@ -581,7 +581,7 @@ thead th {
   font-weight: 500;
   color: var(--dim);
   text-align: left;
-  padding: 6px 10px;
+  padding: 6px;
   border-bottom: 1px solid var(--line);
   background: #ffffff02;
   white-space: nowrap;
@@ -611,7 +611,7 @@ thead th.drag-col {
 }
 
 tbody td {
-  padding: 6px 10px;
+  padding: 6px;
   border-bottom: 1px solid var(--line);
   vertical-align: middle;
 }
@@ -699,6 +699,11 @@ tr.dragging .handle {
   display: flex;
   align-items: center;
   font-weight: 600;
+}
+
+.cell-name .txt,
+.comment .txt {
+  overflow-wrap: anywhere;
 }
 
 .cell-name .txt,
@@ -1305,8 +1310,6 @@ button.bal:hover b {
   .sec-head h2 { font-size: 15px; }
   .sec-head .tag { order: 1; margin: 0 0 0 39px; font-size: 10px; padding: 3px 9px; }
   .section-total { font-size: 12px; padding: 4px 8px; }
-  table { min-width: 660px; }
-  .notes-section table { min-width: 700px; }
 
   .balance-bar {
     grid-template-columns: repeat(2, minmax(0, 1fr));
