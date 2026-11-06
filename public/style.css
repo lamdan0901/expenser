@@ -608,6 +608,17 @@ thead th.act {
 
 thead th.drag-col {
   width: 30px;
+  text-align: center;
+}
+
+/* Tight gap between drag/add column and Item column. */
+thead th:first-child,
+tbody td:first-child {
+  padding-right: 0;
+}
+thead th:nth-child(2),
+tbody td:nth-child(2) {
+  padding-left: 4px;
 }
 
 tbody td {
